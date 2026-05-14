@@ -1,5 +1,6 @@
 import { Storage } from "../storage.js";
 import { defaultItems, ensureItems } from "../items.js";
+import { todayKey, blankEntry, countDone, mergeIntoEntry, snapshotItems } from "../entry.js";
 
 const results = [];
 function it(name, fn) {
@@ -81,6 +82,48 @@ it("ensureItems seeds defaults when nothing saved", () => {
   eq(result.sections.map(x => x.key), ["nutrition", "supplements", "activity", "structural"]);
   // and now persists them
   eq(s.getItems().sections.map(x => x.key), ["nutrition", "supplements", "activity", "structural"]);
+});
+
+it("todayKey returns YYYY-MM-DD for given Date", () => {
+  eq(todayKey(new Date(2026, 4, 13, 10, 30)), "2026-05-13");
+  eq(todayKey(new Date(2026, 0, 1, 0, 0)),    "2026-01-01");
+});
+
+it("blankEntry seeds all items unchecked with empty comment", () => {
+  const items = {
+    sections: [
+      { key: "n", title: "N", items: [{ id: "a", label: "A" }, { id: "b", label: "B" }] },
+    ],
+  };
+  const e = blankEntry("2026-05-13", items);
+  eq(e.date, "2026-05-13");
+  eq(e.items, { a: { label: "A", checked: false, comment: "" },
+                b: { label: "B", checked: false, comment: "" } });
+});
+
+it("countDone returns checked-and-total", () => {
+  const e = { items: { a: { checked: true }, b: { checked: false }, c: { checked: true } } };
+  eq(countDone(e), { done: 2, total: 3 });
+});
+
+it("snapshotItems freezes labels into the entry", () => {
+  const items = { sections: [{ key: "n", title: "N", items: [{ id: "a", label: "Old" }] }] };
+  const snap = snapshotItems(items);
+  eq(snap, { a: "Old" });
+});
+
+it("mergeIntoEntry preserves existing checks/comments and adds new items as blank", () => {
+  const existing = {
+    date: "2026-05-13",
+    items: { a: { label: "A-old", checked: true, comment: "yes" } },
+  };
+  const items = { sections: [{ key: "n", title: "N",
+    items: [{ id: "a", label: "A-new" }, { id: "b", label: "B" }] }] };
+  const merged = mergeIntoEntry(existing, items);
+  eq(merged.items.a.checked, true);
+  eq(merged.items.a.comment, "yes");
+  eq(merged.items.a.label, "A-old");        // history immutability: keep snapshot label
+  eq(merged.items.b, { label: "B", checked: false, comment: "" });
 });
 
 // Render
