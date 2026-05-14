@@ -15,6 +15,9 @@ function uniqueId(items, base) {
 export function renderSettings(root, storage, items, onChange) {
   function save() { storage.saveItems(items); onChange(items); paint(); }
 
+  const controller = new AbortController();
+  const { signal } = controller;
+
   function paint() {
     root.innerHTML = `<a href="#" class="back" id="back-link">← Back</a>`;
     const wrap = document.createElement("div");
@@ -52,7 +55,7 @@ export function renderSettings(root, storage, items, onChange) {
   }
 
   root.addEventListener("click", (ev) => {
-    if (ev.target.id === "back-link") { ev.preventDefault(); onChange(items, "back"); return; }
+    if (ev.target.id === "back-link") { ev.preventDefault(); controller.abort(); onChange(items, "back"); return; }
     if (ev.target.id === "reset-btn") {
       if (!confirm("Restore the original 4-section default list? Existing items will be replaced."))
         return;
@@ -83,7 +86,7 @@ export function renderSettings(root, storage, items, onChange) {
     } else if (act === "down" && idx < sec.items.length - 1) {
       [sec.items[idx + 1], sec.items[idx]] = [sec.items[idx], sec.items[idx + 1]]; save();
     }
-  });
+  }, { signal });
 
   root.addEventListener("change", (ev) => {
     if (ev.target.matches('.settings input[type="text"]')) {
@@ -94,7 +97,7 @@ export function renderSettings(root, storage, items, onChange) {
       it.label = ev.target.value;
       save();
     }
-  });
+  }, { signal });
 
   paint();
 }
