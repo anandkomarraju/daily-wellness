@@ -71,13 +71,14 @@ document.addEventListener("click", (ev) => {
   }
 });
 
-let typingTimer;
+const typingTimers = {};
 document.addEventListener("input", (ev) => {
   if (ev.target.matches(".row textarea")) {
     const id = ev.target.closest(".row").dataset.id;
-    clearTimeout(typingTimer);
-    typingTimer = setTimeout(() => {
-      entry.items[id].comment = ev.target.value;
+    const value = ev.target.value;
+    clearTimeout(typingTimers[id]);
+    typingTimers[id] = setTimeout(() => {
+      entry.items[id].comment = value;
       persist();
     }, 250);
   }
