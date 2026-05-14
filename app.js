@@ -1,6 +1,7 @@
 import { Storage } from "./storage.js";
 import { ensureItems } from "./items.js";
 import { todayKey, blankEntry, mergeIntoEntry, countDone } from "./entry.js";
+import { renderSettings } from "./settings.js";
 
 const storage = Storage(localStorage);
 const items = ensureItems(storage);
@@ -90,4 +91,28 @@ document.getElementById("save-btn").addEventListener("click", () => {
   setTimeout(() => { document.getElementById("save-btn").textContent = "Save today"; }, 1200);
 });
 
-render();
+let view = "main";
+function show() {
+  const root = document.getElementById("app");
+  if (view === "settings") {
+    document.getElementById("title").textContent = "Edit checklist";
+    document.getElementById("stat").textContent = "Changes save automatically";
+    renderSettings(root, storage, items, (newItems, action) => {
+      if (action === "back") { view = "main"; show(); return; }
+      // After items change: rebuild today's entry to include new items / drop nothing.
+      const merged = mergeIntoEntry(entry, items);
+      Object.assign(entry, merged);
+      persist();
+    });
+  } else {
+    render();
+  }
+}
+
+document.getElementById("link-settings").addEventListener("click", (ev) => {
+  ev.preventDefault();
+  view = view === "settings" ? "main" : "settings";
+  show();
+});
+
+show();
