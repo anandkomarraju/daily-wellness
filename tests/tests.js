@@ -1,4 +1,5 @@
 import { Storage } from "../storage.js";
+import { defaultItems, ensureItems } from "../items.js";
 
 const results = [];
 function it(name, fn) {
@@ -45,6 +46,41 @@ it("exportAll bundles items + all entries", () => {
   const dump = s.exportAll();
   eq(dump.items, { sections: [] });
   eq(Object.keys(dump.entries).sort(), ["2026-05-12", "2026-05-13"]);
+});
+
+it("defaultItems has 4 sections in order", () => {
+  const d = defaultItems();
+  eq(d.sections.map(s => s.key), ["nutrition", "supplements", "activity", "structural"]);
+});
+
+it("defaultItems nutrition section has 4 items", () => {
+  const d = defaultItems();
+  const n = d.sections.find(s => s.key === "nutrition");
+  eq(n.items.length, 4);
+});
+
+it("defaultItems item ids are unique slugs", () => {
+  const d = defaultItems();
+  const ids = d.sections.flatMap(s => s.items.map(i => i.id));
+  eq(ids.length, new Set(ids).size);
+  for (const id of ids) {
+    if (!/^[a-z0-9_]+$/.test(id)) throw new Error("bad id: " + id);
+  }
+});
+
+it("ensureItems returns saved items when present", () => {
+  const s = fresh();
+  const fake = { sections: [{ key: "x", title: "X", items: [] }] };
+  s.saveItems(fake);
+  eq(ensureItems(s), fake);
+});
+
+it("ensureItems seeds defaults when nothing saved", () => {
+  const s = fresh();
+  const result = ensureItems(s);
+  eq(result.sections.map(x => x.key), ["nutrition", "supplements", "activity", "structural"]);
+  // and now persists them
+  eq(s.getItems().sections.map(x => x.key), ["nutrition", "supplements", "activity", "structural"]);
 });
 
 // Render
