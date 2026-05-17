@@ -85,31 +85,7 @@
       border: 1px solid var(--line); background: white; }
     .reorder .ord .num { width: 28px; color: var(--muted); font-variant-numeric: tabular-nums; }
     .reorder .ord .label { flex: 1; }
-    .timeline-legend { color: var(--muted); font-size: 12px; margin-bottom: 8px;
-      display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
-    .timeline-legend .swatch { display: inline-block; width: 10px; height: 10px;
-      border-radius: 50%; margin-right: 4px; vertical-align: middle; }
-    .timeline .sec-block { margin: 14px 0; padding: 10px 12px; border-radius: 12px;
-      background: white; border: 1px solid var(--line); }
-    .timeline .sec-block h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
-    .timeline .sec-block[data-key="nutrition"]   h3 { color: var(--sage); }
-    .timeline .sec-block[data-key="supplements"] h3 { color: var(--amber); }
-    .timeline .sec-block[data-key="activity"]    h3 { color: var(--sky); }
-    .timeline .sec-block[data-key="structural"]  h3 { color: var(--slate); }
-    .timeline .row { display: flex; align-items: center; gap: 10px; padding: 6px 0;
-      border-top: 1px solid var(--line); }
-    .timeline .row:first-of-type { border-top: 0; }
-    .timeline .row .label { flex: 1; font-size: 14px; }
-    .timeline .strip { display: flex; gap: 3px; }
-    .timeline .dot { width: 10px; height: 10px; border-radius: 50%; }
-    .timeline .dot.green { background: var(--sage); }
-    .timeline .dot.grey  { background: var(--muted); opacity: 0.45; }
-    .timeline .dot.red   { background: #c87b7b; }
-    .timeline .empty { color: var(--muted); padding: 12px 0; }
-    @media (max-width: 460px) {
-      .timeline .row { flex-direction: column; align-items: flex-start; gap: 4px; }
-      .timeline .row .label { font-size: 13px; }
-    }
+    .empty-page { color: var(--muted); padding: 24px 4px; font-size: 14px; }
     section.ordered { margin: 18px 0; padding: 12px 14px; border-radius: 12px;
       background: white; border: 1px solid var(--line); }
     section.ordered .row .num { width: 28px; color: var(--muted);
@@ -156,9 +132,9 @@
   </main>
   <nav class="save-bar">
     <div>
-      <a href="#" id="link-history">History</a>
-      <a href="#" id="link-settings">Settings</a>
       <a href="#" id="link-timeline">Timeline</a>
+      <a href="#" id="link-settings">Settings</a>
+      <a href="#" id="link-tracking">Tracking</a>
       <a href="#" id="link-export">Export</a>
     </div>
     <button id="save-btn">Save today</button>

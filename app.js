@@ -4,7 +4,6 @@ import { todayKey, blankEntry, mergeIntoEntry, countDone } from "./entry.js";
 import { renderSettings } from "./settings.js";
 import { renderHistory } from "./history.js";
 import { downloadExport } from "./export.js";
-import { renderTimeline } from "./timeline.js";
 
 const storage = Storage(localStorage);
 const items = ensureItems(storage);
@@ -274,14 +273,14 @@ function show() {
       Object.assign(entry, merged);
       persist();
     });
-  } else if (view === "history") {
-    document.getElementById("title").textContent = "History";
-    document.getElementById("stat").textContent = "";
-    renderHistory(root, storage);
   } else if (view === "timeline") {
     document.getElementById("title").textContent = "Timeline";
     document.getElementById("stat").textContent = "";
-    renderTimeline(root, storage, items);
+    renderHistory(root, storage);
+  } else if (view === "tracking") {
+    document.getElementById("title").textContent = "Tracking";
+    document.getElementById("stat").textContent = "";
+    root.innerHTML = `<div class="empty-page">Tracking view coming soon.</div>`;
   } else {
     renderToday();
   }
@@ -292,14 +291,14 @@ document.getElementById("link-settings").addEventListener("click", (ev) => {
   view = view === "settings" ? "main" : "settings";
   show();
 });
-document.getElementById("link-history").addEventListener("click", (ev) => {
-  ev.preventDefault();
-  view = view === "history" ? "main" : "history";
-  show();
-});
 document.getElementById("link-timeline").addEventListener("click", (ev) => {
   ev.preventDefault();
   view = view === "timeline" ? "main" : "timeline";
+  show();
+});
+document.getElementById("link-tracking").addEventListener("click", (ev) => {
+  ev.preventDefault();
+  view = view === "tracking" ? "main" : "tracking";
   show();
 });
 document.getElementById("link-export").addEventListener("click", (ev) => {
