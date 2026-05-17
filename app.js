@@ -490,19 +490,33 @@ function show() {
     document.getElementById("title").textContent = "Timeline";
     document.getElementById("stat").textContent = "";
     renderHistory(root, storage);
+  } else if (view === "tracking") {
+    document.getElementById("title").textContent = "Tracking";
+    document.getElementById("stat").textContent = "";
+    root.innerHTML = `<div class="empty-page">Tracking view coming soon.</div>`;
   } else {
     renderToday();
   }
 }
 
+document.getElementById("link-today").addEventListener("click", (ev) => {
+  ev.preventDefault();
+  view = "main";
+  show();
+});
 document.getElementById("link-settings").addEventListener("click", (ev) => {
   ev.preventDefault();
-  view = view === "settings" ? "main" : "settings";
+  view = "settings";
   show();
 });
 document.getElementById("link-timeline").addEventListener("click", (ev) => {
   ev.preventDefault();
-  view = view === "timeline" ? "main" : "timeline";
+  view = "timeline";
+  show();
+});
+document.getElementById("link-tracking").addEventListener("click", (ev) => {
+  ev.preventDefault();
+  view = "tracking";
   show();
 });
 document.getElementById("link-export").addEventListener("click", (ev) => {
