@@ -31,7 +31,7 @@ export function defaultItems() {
         { id: "protein_125g",    label: "Protein: ≥ 125g" },
         { id: "fiber_35g",       label: "Fiber: ≥ 35g" },
         { id: "carbs_130g_max",  label: "Total Carbs: ≤ 130g" },
-        { id: "water_140oz",     label: "Water: 140 oz (20 oz on waking)" },
+        { id: "water_140oz",     label: "Water 20oz" },
       ],
     },
     {
