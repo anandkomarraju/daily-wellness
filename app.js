@@ -302,12 +302,6 @@ function paintHeroCard(root) {
   nut.innerHTML = renderNutrientRings(t);
   hero.appendChild(nut);
 
-  // Snacks block
-  const snacksBlock = document.createElement("div");
-  snacksBlock.className = "snacks-block";
-  snacksBlock.appendChild(renderSnacksBlock());
-  hero.appendChild(snacksBlock);
-
   root.appendChild(hero);
 }
 
@@ -462,6 +456,15 @@ function renderTracking() {
     sec.appendChild(row);
   });
   root.appendChild(sec);
+
+  // Snacks block at the bottom
+  const snacksWrap = document.createElement("section");
+  snacksWrap.className = "ordered snacks-section";
+  const snacksInner = document.createElement("div");
+  snacksInner.className = "snacks-block";
+  snacksInner.appendChild(renderSnacksBlock());
+  snacksWrap.appendChild(snacksInner);
+  root.appendChild(snacksWrap);
 }
 
 document.addEventListener("change", (ev) => {
