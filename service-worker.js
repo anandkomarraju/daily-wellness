@@ -1,4 +1,4 @@
-const CACHE = "wellness-v1";
+const CACHE = "wellness-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -9,6 +9,7 @@ const ASSETS = [
   "./settings.js",
   "./history.js",
   "./export.js",
+  "./timeline.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
