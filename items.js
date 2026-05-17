@@ -4,20 +4,20 @@ const RENAME_MAP = {
 };
 
 export const ICONS = {
-  b12_morning:          "◉",
-  morning_walk_30:      "⊝",
-  breakfast:            "☐",
-  walk_after_breakfast: "⊝",
-  nuts:                 "◇",
-  d_k2_fishoil:         "◉",
-  recovery_routine:     "⌇",
-  lunch:                "☐",
-  walk_after_lunch:     "⊝",
-  strength_training:    "▲",
-  dinner:               "☐",
-  walk_after_dinner:    "⊝",
-  collagen_coffee:      "⊙",
-  magnesium_eve:        "◉",
+  b12_morning:          "💊",
+  morning_walk_30:      "🚶",
+  breakfast:            "🍳",
+  walk_after_breakfast: "🚶",
+  nuts:                 "🥜",
+  d_k2_fishoil:         "💊",
+  recovery_routine:     "🧘",
+  lunch:                "🥗",
+  walk_after_lunch:     "🚶",
+  strength_training:    "🏋️",
+  dinner:               "🍽️",
+  walk_after_dinner:    "🚶",
+  collagen_coffee:      "☕",
+  magnesium_eve:        "💊",
 };
 
 const DEFAULT_ITEMS_V3 = [

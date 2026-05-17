@@ -19,6 +19,7 @@ if (!Array.isArray(entry.snacks)) entry.snacks = [];
 
 let lastWaterDelta = 0;
 let snackFormOpen = false;
+let fastEditOpen = false;
 let view = "main";
 let tickerHandle = null;
 
@@ -43,9 +44,26 @@ function fmtDuration(ms) {
   const m = totalMin % 60;
   return `${h}h ${String(m).padStart(2,"0")}m`;
 }
+// Format a Date as YYYY-MM-DDTHH:mm in LOCAL time (for <input type="datetime-local"> default value).
+function toLocalDatetimeInput(d) {
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 function startFast() {
+  // Default to now; user can edit in the picker.
   entry.fastStartedAt = new Date().toISOString();
   entry.fastEndedAt = null;
+  fastEditOpen = true;
+  persist();
+  renderToday();
+}
+function setFastStart(localStr) {
+  // localStr is "YYYY-MM-DDTHH:mm" interpreted as local time.
+  if (!localStr) return;
+  const d = new Date(localStr);
+  if (isNaN(d.getTime())) return;
+  entry.fastStartedAt = d.toISOString();
+  fastEditOpen = false;
   persist();
   renderToday();
 }
@@ -77,13 +95,6 @@ function macroTotals() {
     if (!it.macros) continue;
     const m = entry.items[it.id]?.macros;
     if (!m) continue;
-    p  += Number(m.p)  || 0;
-    fi += Number(m.fi) || 0;
-    fa += Number(m.fa) || 0;
-    c  += Number(m.c)  || 0;
-  }
-  for (const s of (entry.snacks ?? [])) {
-    const m = s.macros ?? {};
     p  += Number(m.p)  || 0;
     fi += Number(m.fi) || 0;
     fa += Number(m.fa) || 0;
@@ -124,12 +135,24 @@ function paintHeroCard(root) {
   fast.className = "hero-row";
   fast.id = "fasting-pill";
   if (entry.fastStartedAt && !entry.fastEndedAt) {
-    fast.innerHTML = `
-      <span class="glyph">⏱</span>
-      <span class="label">Fasting</span>
-      <span class="value grow">${fmtDuration(fastDurationMs(entry.fastStartedAt, null))}</span>
-      <button id="end-fast">End fast</button>
-    `;
+    if (fastEditOpen) {
+      const startInput = toLocalDatetimeInput(new Date(entry.fastStartedAt));
+      fast.innerHTML = `
+        <span class="glyph">⏱</span>
+        <span class="label">Started</span>
+        <input type="datetime-local" id="fast-start-input" value="${startInput}" />
+        <button id="fast-start-save" class="primary">Save</button>
+        <button id="fast-edit-cancel">Cancel</button>
+      `;
+    } else {
+      fast.innerHTML = `
+        <span class="glyph">⏱</span>
+        <span class="label">Fasting</span>
+        <span class="value grow">${fmtDuration(fastDurationMs(entry.fastStartedAt, null))}</span>
+        <button id="fast-edit">edit start</button>
+        <button id="end-fast">End fast</button>
+      `;
+    }
   } else if (entry.fastStartedAt && entry.fastEndedAt) {
     fast.innerHTML = `
       <span class="glyph">⏱</span>
@@ -337,6 +360,13 @@ document.addEventListener("click", (ev) => {
   }
   if (ev.target.id === "start-fast") { startFast(); return; }
   if (ev.target.id === "end-fast")   { endFast(); return; }
+  if (ev.target.id === "fast-edit")  { fastEditOpen = true; renderToday(); return; }
+  if (ev.target.id === "fast-edit-cancel") { fastEditOpen = false; renderToday(); return; }
+  if (ev.target.id === "fast-start-save") {
+    const v = document.getElementById("fast-start-input")?.value;
+    if (v) setFastStart(v);
+    return;
+  }
   if (ev.target.matches('[data-water]')) {
     const oz = Number(ev.target.dataset.water);
     if (oz > 0) addWater(oz);
@@ -460,10 +490,6 @@ function show() {
     document.getElementById("title").textContent = "Timeline";
     document.getElementById("stat").textContent = "";
     renderHistory(root, storage);
-  } else if (view === "tracking") {
-    document.getElementById("title").textContent = "Tracking";
-    document.getElementById("stat").textContent = "";
-    root.innerHTML = `<div class="empty-page">Tracking view coming soon.</div>`;
   } else {
     renderToday();
   }
@@ -477,11 +503,6 @@ document.getElementById("link-settings").addEventListener("click", (ev) => {
 document.getElementById("link-timeline").addEventListener("click", (ev) => {
   ev.preventDefault();
   view = view === "timeline" ? "main" : "timeline";
-  show();
-});
-document.getElementById("link-tracking").addEventListener("click", (ev) => {
-  ev.preventDefault();
-  view = view === "tracking" ? "main" : "tracking";
   show();
 });
 document.getElementById("link-export").addEventListener("click", (ev) => {
