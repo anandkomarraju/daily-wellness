@@ -115,7 +115,7 @@ function undoWater() {
 }
 
 function macroTotals() {
-  let p = 0, fi = 0, fa = 0, c = 0;
+  let p = 0, fi = 0, fa = 0, c = 0, su = 0;
   for (const it of items.items) {
     if (!it.macros) continue;
     const m = entry.items[it.id]?.macros;
@@ -124,8 +124,9 @@ function macroTotals() {
     fi += Number(m.fi) || 0;
     fa += Number(m.fa) || 0;
     c  += Number(m.c)  || 0;
+    su += Number(m.su) || 0;
   }
-  return { p, fi, fa, c };
+  return { p, fi, fa, c, su };
 }
 
 function pct(value, target) {
@@ -328,39 +329,16 @@ function renderNutrientRings(t) {
       </div>
     `;
   }
+  // Net carbs = total carbs - fiber, but here `c` is already user-entered net carbs
+  // (we renamed the input label below). Goal 90g.
   return `
     <div class="nutrients-title">Today's Nutrients</div>
     <div class="nutrient-rings">
-      ${ring("p",  "Protein", t.p,  125)}
-      ${ring("fi", "Fiber",   t.fi, 35)}
-      ${ring("fa", "Fats",    t.fa, 0)}
-      ${ring("c",  "Carbs",   t.c,  130)}
-    </div>
-  `;
-}
-
-function renderMacrosBlock(t) {
-  return `
-    <div class="macros-title">Today's macros</div>
-    <div class="pill-row">
-      <span class="name">Protein</span>
-      <span class="bar"><span style="width: ${pct(t.p, 125)}%"></span></span>
-      <span class="val">${t.p} / 125g</span>
-    </div>
-    <div class="pill-row">
-      <span class="name">Fiber</span>
-      <span class="bar"><span style="width: ${pct(t.fi, 35)}%"></span></span>
-      <span class="val">${t.fi} / 35g</span>
-    </div>
-    <div class="pill-row">
-      <span class="name">Fats</span>
-      <span class="bar" style="visibility: hidden"></span>
-      <span class="val">${t.fa}g</span>
-    </div>
-    <div class="pill-row">
-      <span class="name">Carbs</span>
-      <span class="bar ${t.c > 130 ? "over" : ""}"><span style="width: ${pct(t.c, 130)}%"></span></span>
-      <span class="val">${t.c} / 130g</span>
+      ${ring("p",  "Protein",   t.p,  125)}
+      ${ring("fi", "Fiber",     t.fi, 35)}
+      ${ring("fa", "Fats",      t.fa, 0)}
+      ${ring("c",  "Net Carbs", t.c,  90)}
+      ${ring("su", "Sugar",     t.su, 40)}
     </div>
   `;
 }
@@ -383,7 +361,8 @@ function renderSnacksBlock() {
       <span class="mac-input">P <input type="number" min="0" inputmode="numeric" id="snack-p" /></span>
       <span class="mac-input">Fi <input type="number" min="0" inputmode="numeric" id="snack-fi" /></span>
       <span class="mac-input">Fa <input type="number" min="0" inputmode="numeric" id="snack-fa" /></span>
-      <span class="mac-input">C <input type="number" min="0" inputmode="numeric" id="snack-c" /></span>
+      <span class="mac-input">NetC <input type="number" min="0" inputmode="numeric" id="snack-c" /></span>
+      <span class="mac-input">Su <input type="number" min="0" inputmode="numeric" id="snack-su" /></span>
       <button id="snack-save">Save</button>
     `;
     wrap.appendChild(form);
@@ -396,7 +375,7 @@ function renderSnacksBlock() {
     const m = sn.macros ?? {};
     chip.innerHTML = `
       <span>${escapeAttr(sn.label || "(unnamed)")}</span>
-      <span class="chip-mac">P ${Number(m.p)||0} Fi ${Number(m.fi)||0} Fa ${Number(m.fa)||0} C ${Number(m.c)||0}</span>
+      <span class="chip-mac">P ${Number(m.p)||0} Fi ${Number(m.fi)||0} Fa ${Number(m.fa)||0} NetC ${Number(m.c)||0}${(Number(m.su)||0) > 15 ? ` <span class="sugar-flag">Su ${Number(m.su)||0}⚠</span>` : ` Su ${Number(m.su)||0}`}</span>
       <button data-snack-del="${sn.id}">✕</button>
     `;
     chipWrap.appendChild(chip);
@@ -433,7 +412,7 @@ function renderTracking() {
     row.className = "row";
     row.dataset.id = it.id;
     row.dataset.checked = String(cell.checked);
-    const m = cell.macros ?? { p: "", fi: "", fa: "", c: "" };
+    const m = cell.macros ?? { p: "", fi: "", fa: "", c: "", su: "" };
     const glyph = ICONS[it.id] ?? "·";
     row.innerHTML = `
       <input type="checkbox" ${cell.checked ? "checked" : ""} />
@@ -448,7 +427,8 @@ function renderTracking() {
             <label>P <input type="number" min="0" inputmode="numeric" data-mac="p"  value="${m.p ?? ""}"></label>
             <label>Fi <input type="number" min="0" inputmode="numeric" data-mac="fi" value="${m.fi ?? ""}"></label>
             <label>Fa <input type="number" min="0" inputmode="numeric" data-mac="fa" value="${m.fa ?? ""}"></label>
-            <label>C <input type="number" min="0" inputmode="numeric" data-mac="c"  value="${m.c ?? ""}"></label>
+            <label>NetC <input type="number" min="0" inputmode="numeric" data-mac="c"  value="${m.c ?? ""}"></label>
+            <label class="${(Number(m.su)||0) > 15 ? 'sugar-warn' : ''}">Su <input type="number" min="0" inputmode="numeric" data-mac="su" value="${m.su ?? ""}"></label>
           </div>
         ` : ""}
       </div>
@@ -535,6 +515,7 @@ document.addEventListener("click", (ev) => {
       fi: Number(document.getElementById("snack-fi")?.value) || 0,
       fa: Number(document.getElementById("snack-fa")?.value) || 0,
       c:  Number(document.getElementById("snack-c")?.value)  || 0,
+      su: Number(document.getElementById("snack-su")?.value) || 0,
     };
     if (!Array.isArray(entry.snacks)) entry.snacks = [];
     entry.snacks.push({
@@ -587,7 +568,7 @@ document.addEventListener("input", (ev) => {
         const it = items.items.find(x => x.id === id);
         entry.items[id] = { label: it?.label ?? id, checked: false, comment: "" };
       }
-      entry.items[id].macros = { ...(entry.items[id].macros ?? { p: 0, fi: 0, fa: 0, c: 0 }), [key]: val };
+      entry.items[id].macros = { ...(entry.items[id].macros ?? { p: 0, fi: 0, fa: 0, c: 0, su: 0 }), [key]: val };
       persist();
       refreshMacrosBlock();
     }, 250);
