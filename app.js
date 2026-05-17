@@ -5,6 +5,19 @@ import { renderSettings } from "./settings.js";
 import { renderHistory } from "./history.js";
 import { downloadExport } from "./export.js";
 
+// Fasting goal in hours. Persisted on the entry so each day's goal is independent.
+const DEFAULT_FAST_GOAL_HOURS = 14;
+const FAST_GOAL_OPTIONS = [14, 16, 18, 20, 24];
+
+const FAST_STAGES = [
+  { from: 0,  to: 4,   name: "Fed",       desc: "Digesting your last meal." },
+  { from: 4,  to: 12,  name: "Glycogen",  desc: "Body burning stored sugar." },
+  { from: 12, to: 16,  name: "Ketosis",   desc: "Fat-burning ramping up." },
+  { from: 16, to: 18,  name: "Deep Ketosis", desc: "Energy from ketones." },
+  { from: 18, to: 24,  name: "Autophagy", desc: "Cellular cleanup begins." },
+  { from: 24, to: Infinity, name: "Deep Autophagy", desc: "Stem cell renewal." },
+];
+
 const storage = Storage(localStorage);
 const items = ensureItems(storage);
 
@@ -22,19 +35,6 @@ let snackFormOpen = false;
 let fastEditOpen = false;
 let view = "main";
 let tickerHandle = null;
-
-// Fasting goal in hours. Persisted on the entry so each day's goal is independent.
-const DEFAULT_FAST_GOAL_HOURS = 14;
-const FAST_GOAL_OPTIONS = [14, 16, 18, 20, 24];
-
-const FAST_STAGES = [
-  { from: 0,  to: 4,   name: "Fed",       desc: "Digesting your last meal." },
-  { from: 4,  to: 12,  name: "Glycogen",  desc: "Body burning stored sugar." },
-  { from: 12, to: 16,  name: "Ketosis",   desc: "Fat-burning ramping up." },
-  { from: 16, to: 18,  name: "Deep Ketosis", desc: "Energy from ketones." },
-  { from: 18, to: 24,  name: "Autophagy", desc: "Cellular cleanup begins." },
-  { from: 24, to: Infinity, name: "Deep Autophagy", desc: "Stem cell renewal." },
-];
 
 function currentFastStage(hours) {
   for (const s of FAST_STAGES) {
