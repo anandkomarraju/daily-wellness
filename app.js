@@ -1,5 +1,5 @@
 import { Storage } from "./storage.js";
-import { ensureItems } from "./items.js";
+import { ensureItems, ICONS } from "./items.js";
 import { todayKey, blankEntry, mergeIntoEntry, countDone } from "./entry.js";
 import { renderSettings } from "./settings.js";
 import { renderHistory } from "./history.js";
@@ -10,11 +10,15 @@ const items = ensureItems(storage);
 
 const date = todayKey();
 const existing = storage.getEntry(date);
+const baseExtras = { waterOz: 0, steps: 0, snacks: [], fastStartedAt: null, fastEndedAt: null };
 const entry = existing
-  ? { waterOz: 0, fastStartedAt: null, fastEndedAt: null, ...mergeIntoEntry(existing, items) }
-  : { ...blankEntry(date, items), waterOz: 0, fastStartedAt: null, fastEndedAt: null };
+  ? { ...baseExtras, ...mergeIntoEntry(existing, items) }
+  : { ...blankEntry(date, items), ...baseExtras };
+// Ensure snacks is always an array (in case old entries have snacks: null)
+if (!Array.isArray(entry.snacks)) entry.snacks = [];
 
 let lastWaterDelta = 0;
+let snackFormOpen = false;
 let view = "main";
 let tickerHandle = null;
 
@@ -78,15 +82,27 @@ function macroTotals() {
     fa += Number(m.fa) || 0;
     c  += Number(m.c)  || 0;
   }
+  for (const s of (entry.snacks ?? [])) {
+    const m = s.macros ?? {};
+    p  += Number(m.p)  || 0;
+    fi += Number(m.fi) || 0;
+    fa += Number(m.fa) || 0;
+    c  += Number(m.c)  || 0;
+  }
   return { p, fi, fa, c };
+}
+
+function pct(value, target) {
+  if (!target) return 0;
+  return Math.max(0, Math.min(100, Math.round((value / target) * 100)));
 }
 
 function startTicker() {
   if (tickerHandle) return;
   tickerHandle = setInterval(() => {
     if (view === "main" && entry.fastStartedAt && !entry.fastEndedAt) {
-      const pill = document.querySelector("#fasting-pill .left");
-      if (pill) pill.textContent = `⏱ Fasting: ${fmtDuration(fastDurationMs(entry.fastStartedAt, null))}`;
+      const pill = document.querySelector("#fasting-pill .value");
+      if (pill) pill.textContent = `Fasting: ${fmtDuration(fastDurationMs(entry.fastStartedAt, null))}`;
     }
   }, 60_000);
 }
@@ -95,49 +111,157 @@ function escapeAttr(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function paintTopTools(root) {
-  const tools = document.createElement("div");
-  tools.className = "top-tools";
+function newSnackId() {
+  return Math.random().toString(36).slice(2, 10);
+}
 
+function paintHeroCard(root) {
+  const hero = document.createElement("div");
+  hero.className = "hero";
+
+  // Fasting row
   const fast = document.createElement("div");
-  fast.className = "tool-row";
+  fast.className = "hero-row";
   fast.id = "fasting-pill";
   if (entry.fastStartedAt && !entry.fastEndedAt) {
     fast.innerHTML = `
-      <span class="left">⏱ Fasting: ${fmtDuration(fastDurationMs(entry.fastStartedAt, null))}</span>
+      <span class="glyph">⏱</span>
+      <span class="label">Fasting</span>
+      <span class="value grow">${fmtDuration(fastDurationMs(entry.fastStartedAt, null))}</span>
       <button id="end-fast">End fast</button>
     `;
   } else if (entry.fastStartedAt && entry.fastEndedAt) {
     fast.innerHTML = `
-      <span class="left">⏱ Fasted: ${fmtDuration(fastDurationMs(entry.fastStartedAt, entry.fastEndedAt))} ✓</span>
+      <span class="glyph">⏱</span>
+      <span class="label">Fasted</span>
+      <span class="value grow">${fmtDuration(fastDurationMs(entry.fastStartedAt, entry.fastEndedAt))} ✓</span>
     `;
   } else {
     fast.innerHTML = `
-      <span class="left">⏱ Not fasting</span>
+      <span class="glyph">⏱</span>
+      <span class="label">Fasting</span>
+      <span class="value grow">not started</span>
       <button id="start-fast" class="primary">Start fast</button>
     `;
   }
-  tools.appendChild(fast);
+  hero.appendChild(fast);
 
-  const water = document.createElement("div");
-  water.className = "tool-row";
-  water.id = "water-row";
+  // Water row
   const w = entry.waterOz ?? 0;
+  const wpct = pct(w, 140);
+  const water = document.createElement("div");
+  water.className = "hero-row";
+  water.id = "water-row";
   water.innerHTML = `
-    <span class="left">💧 Water: ${w} / 140 oz${w >= 140 ? " ✓" : ""}</span>
-    <button data-water="8">+8 oz</button>
-    <button data-water="16">+16 oz</button>
+    <span class="glyph">💧</span>
+    <span class="label">Water</span>
+    <span class="value">${w}</span>
+    <span class="target">/ 140 oz</span>
+    <span class="bar"><span style="width: ${wpct}%"></span></span>
+    <span class="sub">${wpct}%</span>
+    <button data-water="8">+8</button>
+    <button data-water="16">+16</button>
     ${lastWaterDelta > 0 ? `<a class="undo" id="water-undo">undo</a>` : ""}
   `;
-  tools.appendChild(water);
+  hero.appendChild(water);
 
-  const tally = document.createElement("div");
-  tally.className = "log-tally";
+  // Steps row
+  const s = entry.steps ?? 0;
+  const spct = pct(s, 10000);
+  const steps = document.createElement("div");
+  steps.className = "hero-row";
+  steps.id = "steps-row";
+  steps.innerHTML = `
+    <span class="glyph">👟</span>
+    <span class="label">Steps</span>
+    <input type="number" min="0" inputmode="numeric" id="steps-input" value="${s || ""}" placeholder="0" />
+    <span class="target">/ 10,000</span>
+    <span class="bar"><span style="width: ${spct}%"></span></span>
+    <span class="sub">${spct}%${s >= 10000 ? " ✓" : ""}</span>
+  `;
+  hero.appendChild(steps);
+
+  // Macros block
   const t = macroTotals();
-  tally.textContent = `Today's log: P ${t.p}/125g · Fi ${t.fi}/35g · Fa ${t.fa}g · C ${t.c}/130g`;
-  tools.appendChild(tally);
+  const macroBlock = document.createElement("div");
+  macroBlock.className = "macros-block";
+  macroBlock.id = "macros-block";
+  macroBlock.innerHTML = renderMacrosBlock(t);
+  hero.appendChild(macroBlock);
 
-  root.appendChild(tools);
+  // Snacks block
+  const snacksBlock = document.createElement("div");
+  snacksBlock.className = "snacks-block";
+  snacksBlock.appendChild(renderSnacksBlock());
+  hero.appendChild(snacksBlock);
+
+  root.appendChild(hero);
+}
+
+function renderMacrosBlock(t) {
+  return `
+    <div class="macros-title">Today's macros</div>
+    <div class="pill-row">
+      <span class="name">Protein</span>
+      <span class="bar"><span style="width: ${pct(t.p, 125)}%"></span></span>
+      <span class="val">${t.p} / 125g</span>
+    </div>
+    <div class="pill-row">
+      <span class="name">Fiber</span>
+      <span class="bar"><span style="width: ${pct(t.fi, 35)}%"></span></span>
+      <span class="val">${t.fi} / 35g</span>
+    </div>
+    <div class="pill-row">
+      <span class="name">Fats</span>
+      <span class="bar" style="visibility: hidden"></span>
+      <span class="val">${t.fa}g</span>
+    </div>
+    <div class="pill-row">
+      <span class="name">Carbs</span>
+      <span class="bar ${t.c > 130 ? "over" : ""}"><span style="width: ${pct(t.c, 130)}%"></span></span>
+      <span class="val">${t.c} / 130g</span>
+    </div>
+  `;
+}
+
+function renderSnacksBlock() {
+  const wrap = document.createElement("div");
+  const head = document.createElement("div");
+  head.className = "snacks-head";
+  head.innerHTML = `
+    <span class="label">Snacks</span>
+    <button id="snack-toggle">${snackFormOpen ? "Cancel" : "+ Add snack"}</button>
+  `;
+  wrap.appendChild(head);
+
+  if (snackFormOpen) {
+    const form = document.createElement("div");
+    form.className = "snack-form";
+    form.innerHTML = `
+      <input type="text" id="snack-label" placeholder="what I ate" />
+      <span class="mac-input">P <input type="number" min="0" inputmode="numeric" id="snack-p" /></span>
+      <span class="mac-input">Fi <input type="number" min="0" inputmode="numeric" id="snack-fi" /></span>
+      <span class="mac-input">Fa <input type="number" min="0" inputmode="numeric" id="snack-fa" /></span>
+      <span class="mac-input">C <input type="number" min="0" inputmode="numeric" id="snack-c" /></span>
+      <button id="snack-save">Save</button>
+    `;
+    wrap.appendChild(form);
+  }
+
+  const chipWrap = document.createElement("div");
+  for (const sn of (entry.snacks ?? [])) {
+    const chip = document.createElement("span");
+    chip.className = "snack-chip";
+    const m = sn.macros ?? {};
+    chip.innerHTML = `
+      <span>${escapeAttr(sn.label || "(unnamed)")}</span>
+      <span class="chip-mac">P ${Number(m.p)||0} Fi ${Number(m.fi)||0} Fa ${Number(m.fa)||0} C ${Number(m.c)||0}</span>
+      <button data-snack-del="${sn.id}">✕</button>
+    `;
+    chipWrap.appendChild(chip);
+  }
+  wrap.appendChild(chipWrap);
+  return wrap;
 }
 
 function renderToday() {
@@ -147,7 +271,7 @@ function renderToday() {
 
   const root = document.getElementById("app");
   root.innerHTML = "";
-  paintTopTools(root);
+  paintHeroCard(root);
 
   const sec = document.createElement("section");
   sec.className = "ordered";
@@ -159,8 +283,10 @@ function renderToday() {
     row.dataset.id = it.id;
     row.dataset.checked = String(cell.checked);
     const m = cell.macros ?? { p: "", fi: "", fa: "", c: "" };
+    const glyph = ICONS[it.id] ?? "·";
     row.innerHTML = `
       <input type="checkbox" ${cell.checked ? "checked" : ""} />
+      <span class="glyph">${glyph}</span>
       <div class="num">${idx + 1}.</div>
       <div class="label">
         ${it.label}
@@ -217,9 +343,54 @@ document.addEventListener("click", (ev) => {
     return;
   }
   if (ev.target.id === "water-undo") { undoWater(); return; }
+  if (ev.target.id === "snack-toggle") {
+    snackFormOpen = !snackFormOpen;
+    renderToday();
+    if (snackFormOpen) {
+      const inp = document.getElementById("snack-label");
+      if (inp) inp.focus();
+    }
+    return;
+  }
+  if (ev.target.id === "snack-save") {
+    const label = (document.getElementById("snack-label")?.value ?? "").trim();
+    if (!label) {
+      const inp = document.getElementById("snack-label");
+      if (inp) inp.focus();
+      return;
+    }
+    const macros = {
+      p:  Number(document.getElementById("snack-p")?.value)  || 0,
+      fi: Number(document.getElementById("snack-fi")?.value) || 0,
+      fa: Number(document.getElementById("snack-fa")?.value) || 0,
+      c:  Number(document.getElementById("snack-c")?.value)  || 0,
+    };
+    if (!Array.isArray(entry.snacks)) entry.snacks = [];
+    entry.snacks.push({
+      id: newSnackId(),
+      label,
+      macros,
+      createdAt: new Date().toISOString(),
+    });
+    snackFormOpen = false;
+    persist();
+    renderToday();
+    return;
+  }
+  if (ev.target.matches('[data-snack-del]')) {
+    const id = ev.target.dataset.snackDel;
+    entry.snacks = (entry.snacks ?? []).filter(s => s.id !== id);
+    persist();
+    renderToday();
+    return;
+  }
 });
 
 const typingTimers = {};
+function refreshMacrosBlock() {
+  const block = document.getElementById("macros-block");
+  if (block) block.innerHTML = renderMacrosBlock(macroTotals());
+}
 document.addEventListener("input", (ev) => {
   if (ev.target.matches(".row textarea")) {
     const id = ev.target.closest(".row").dataset.id;
@@ -247,10 +418,22 @@ document.addEventListener("input", (ev) => {
       }
       entry.items[id].macros = { ...(entry.items[id].macros ?? { p: 0, fi: 0, fa: 0, c: 0 }), [key]: val };
       persist();
-      const tally = document.querySelector(".log-tally");
-      if (tally) {
-        const t = macroTotals();
-        tally.textContent = `Today's log: P ${t.p}/125g · Fi ${t.fi}/35g · Fa ${t.fa}g · C ${t.c}/130g`;
+      refreshMacrosBlock();
+    }, 250);
+  } else if (ev.target.id === "steps-input") {
+    const val = Math.max(0, Number(ev.target.value) || 0);
+    clearTimeout(typingTimers["__steps"]);
+    typingTimers["__steps"] = setTimeout(() => {
+      entry.steps = val;
+      persist();
+      // Refresh just the steps row's value/bar/sub without full re-render
+      const stepsRow = document.getElementById("steps-row");
+      if (stepsRow) {
+        const p = pct(val, 10000);
+        const bar = stepsRow.querySelector(".bar > span");
+        if (bar) bar.style.width = `${p}%`;
+        const sub = stepsRow.querySelector(".sub");
+        if (sub) sub.textContent = `${p}%${val >= 10000 ? " ✓" : ""}`;
       }
     }, 250);
   }
