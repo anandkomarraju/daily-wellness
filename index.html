@@ -73,6 +73,18 @@
     .history .day ul { margin: 0; padding-left: 18px; }
     .history .day li.miss { color: var(--muted); }
     .history .day li .why { color: var(--muted); font-size: 13px; }
+    .settings .reorder-link { display: inline-block; margin-bottom: 12px; padding: 10px 14px;
+      background: white; border: 1px solid var(--line); border-radius: 10px;
+      color: var(--fg); text-decoration: none; font-weight: 500; }
+    .reorder { background: white; border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px 14px; margin-top: 12px; }
+    .reorder .ord { display: flex; gap: 8px; align-items: center; padding: 8px 0;
+      border-top: 1px solid var(--line); }
+    .reorder .ord:first-of-type { border-top: 0; }
+    .reorder .ord button { padding: 6px 10px; border-radius: 8px;
+      border: 1px solid var(--line); background: white; }
+    .reorder .ord .num { width: 28px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .reorder .ord .label { flex: 1; }
   </style>
 </head>
 <body>

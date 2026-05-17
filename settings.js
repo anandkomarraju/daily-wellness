@@ -18,10 +18,20 @@ export function renderSettings(root, storage, items, onChange) {
   const controller = new AbortController();
   const { signal } = controller;
 
-  function paint() {
+  let mode = "main"; // "main" | "reorder"
+
+  function paintMain() {
     root.innerHTML = `<a href="#" class="back" id="back-link">← Back</a>`;
     const wrap = document.createElement("div");
     wrap.className = "settings";
+
+    const reorder = document.createElement("a");
+    reorder.href = "#";
+    reorder.className = "reorder-link";
+    reorder.id = "reorder-link";
+    reorder.textContent = "Reorder routine →";
+    wrap.appendChild(reorder);
+
     for (const sec of items.sections) {
       const block = document.createElement("div");
       block.className = "sec-block";
@@ -54,8 +64,53 @@ export function renderSettings(root, storage, items, onChange) {
     root.appendChild(wrap);
   }
 
+  function paintReorder() {
+    root.innerHTML = `<a href="#" class="back" id="back-to-settings">← Back to settings</a>`;
+    const wrap = document.createElement("div");
+    wrap.className = "settings";
+    const card = document.createElement("div");
+    card.className = "reorder";
+
+    const flat = items.sections.flatMap(s => s.items)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    flat.forEach((it, idx) => {
+      const row = document.createElement("div");
+      row.className = "ord";
+      row.dataset.id = it.id;
+      row.innerHTML = `
+        <button data-act="rup">↑</button>
+        <button data-act="rdown">↓</button>
+        <span class="num">${idx + 1}.</span>
+        <span class="label">${it.label}</span>
+      `;
+      card.appendChild(row);
+    });
+    wrap.appendChild(card);
+    root.appendChild(wrap);
+  }
+
+  function paint() {
+    if (mode === "reorder") paintReorder();
+    else paintMain();
+  }
+
   root.addEventListener("click", (ev) => {
     if (ev.target.id === "back-link") { ev.preventDefault(); controller.abort(); onChange(items, "back"); return; }
+    if (ev.target.id === "reorder-link") { ev.preventDefault(); mode = "reorder"; paint(); return; }
+    if (ev.target.id === "back-to-settings") { ev.preventDefault(); mode = "main"; paint(); return; }
+    if (ev.target.dataset.act === "rup" || ev.target.dataset.act === "rdown") {
+      const row = ev.target.closest(".ord");
+      const id = row.dataset.id;
+      const flat = items.sections.flatMap(s => s.items)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      const idx = flat.findIndex(i => i.id === id);
+      const swapWith = ev.target.dataset.act === "rup" ? idx - 1 : idx + 1;
+      if (swapWith < 0 || swapWith >= flat.length) return;
+      const a = flat[idx], b = flat[swapWith];
+      const tmp = a.order; a.order = b.order; b.order = tmp;
+      save();
+      return;
+    }
     if (ev.target.id === "reset-btn") {
       if (!confirm("Restore the original 4-section default list? Existing items will be replaced."))
         return;
