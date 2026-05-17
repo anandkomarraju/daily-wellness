@@ -126,6 +126,23 @@ it("mergeIntoEntry preserves existing checks/comments and adds new items as blan
   eq(merged.items.b, { label: "B", checked: false, comment: "" });
 });
 
+it("getLayout returns 'category' by default", () => {
+  const s = fresh();
+  eq(s.getLayout(), "category");
+});
+
+it("saveLayout then getLayout round-trips", () => {
+  const s = fresh();
+  s.saveLayout("order");
+  eq(s.getLayout(), "order");
+});
+
+it("getLayout returns 'category' when junk is stored", () => {
+  const s = fresh();
+  localStorage.setItem("wellness:layout", '"banana"');
+  eq(s.getLayout(), "category");
+});
+
 // Render
 const root = document.getElementById("results");
 for (const r of results) {
