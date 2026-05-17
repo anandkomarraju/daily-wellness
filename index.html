@@ -133,6 +133,101 @@
       border-radius: 999px; transition: width 200ms ease; }
     .bar.over > span { background: var(--amber); }
 
+    /* fasting ring */
+    .fast-block { display: flex; align-items: center; gap: 16px; padding: 12px 0 14px; }
+    .fast-ring { position: relative; width: 132px; height: 132px; flex: 0 0 auto; }
+    .fast-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .fast-ring .track { fill: none; stroke: var(--line); stroke-width: 10; }
+    .fast-ring .progress { fill: none; stroke: var(--sage); stroke-width: 10;
+      stroke-linecap: round; transition: stroke-dashoffset 400ms ease; }
+    .fast-ring.complete .progress { stroke: var(--sage); }
+    .fast-ring .center { position: absolute; inset: 0; display: flex;
+      flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+    .fast-ring .center .icon { font-size: 18px; line-height: 1; }
+    .fast-ring .center .stage { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--muted); font-weight: 600; }
+    .fast-block .fast-info { flex: 1; min-width: 0; }
+    .fast-block .fast-time { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums;
+      color: var(--fg); line-height: 1.1; }
+    .fast-block .fast-time-label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .fast-block .fast-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+    .fast-block .fast-actions button { padding: 8px 16px; border-radius: 999px; border: 0;
+      background: var(--sage); color: white; font: inherit; font-weight: 600; cursor: pointer;
+      transition: transform 100ms ease, opacity 150ms ease; }
+    .fast-block .fast-actions button:active { transform: scale(.98); }
+    .fast-block .fast-actions button.ghost { background: white; color: var(--fg);
+      border: 1px solid var(--line); font-weight: 500; padding: 6px 12px; }
+    .fast-block .fast-actions input[type="datetime-local"] { padding: 6px 8px;
+      border: 1px solid var(--line); border-radius: 8px; font: inherit; flex: 1 1 200px; min-width: 0; }
+    .fast-block .fast-actions select { padding: 6px 8px; border: 1px solid var(--line);
+      border-radius: 8px; font: inherit; background: white; }
+    .fast-block .stage-detail { font-size: 11px; color: var(--muted); margin-top: 6px;
+      line-height: 1.4; }
+
+    /* water glass */
+    .water-block { display: flex; align-items: center; gap: 16px; padding: 12px 0;
+      border-top: 1px solid var(--line); }
+    .water-glass { position: relative; width: 60px; height: 90px; flex: 0 0 auto; }
+    .water-glass .outline { position: absolute; inset: 0;
+      border: 2px solid var(--line); border-top: 0;
+      border-radius: 0 0 14px 14px; overflow: hidden;
+      background: linear-gradient(180deg, transparent 0%, rgba(106,140,175,0.04) 100%); }
+    .water-glass .water-fill { position: absolute; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(180deg, rgba(106,140,175,.5) 0%, rgba(106,140,175,.85) 100%);
+      transition: height 400ms ease;
+      border-radius: 0 0 12px 12px; }
+    .water-glass .water-fill::before {
+      content: ''; position: absolute; top: -3px; left: 0; right: 0; height: 6px;
+      background: rgba(106,140,175,.7); border-radius: 50%;
+      animation: water-wave 3s ease-in-out infinite;
+    }
+    @keyframes water-wave { 0%,100% { transform: translateX(-2px) scaleY(0.8); } 50% { transform: translateX(2px) scaleY(1.1); } }
+    .water-glass .top-rim { position: absolute; top: -2px; left: -4px; right: -4px; height: 4px;
+      border-top: 2px solid var(--line); border-radius: 50%; }
+    .water-block .water-info { flex: 1; min-width: 0; }
+    .water-block .water-value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums;
+      color: var(--fg); line-height: 1; }
+    .water-block .water-target { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .water-block .water-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+    .water-block .water-actions button { padding: 6px 14px; border-radius: 999px;
+      border: 1px solid var(--sky); background: white; color: var(--sky);
+      font: inherit; font-weight: 600; cursor: pointer; transition: transform 100ms ease; }
+    .water-block .water-actions button:active { transform: scale(.97); background: rgba(106,140,175,.08); }
+    .water-block .water-actions a.undo { font-size: 12px; color: var(--muted);
+      text-decoration: underline; cursor: pointer; }
+
+    /* steps row (compact) */
+    .steps-block { display: flex; align-items: center; gap: 10px; padding: 10px 0;
+      border-top: 1px solid var(--line); flex-wrap: wrap; }
+    .steps-block .glyph { font-size: 18px; }
+    .steps-block .label { font-size: 14px; min-width: 50px; }
+    .steps-block input[type="number"] { width: 80px; padding: 6px 8px;
+      border: 1px solid var(--line); border-radius: 8px; font: inherit; font-variant-numeric: tabular-nums; }
+    .steps-block .target { color: var(--muted); font-size: 13px; }
+    .steps-block .sub { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 36px; text-align: right; }
+
+    /* nutrient rings */
+    .nutrients-block { padding: 14px 0 6px; border-top: 1px solid var(--line); }
+    .nutrients-title { color: var(--muted); font-size: 12px; letter-spacing: 0.08em;
+      text-transform: uppercase; margin-bottom: 10px; }
+    .nutrient-rings { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .nutrient-ring { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .nutrient-ring svg { width: 64px; height: 64px; transform: rotate(-90deg); }
+    .nutrient-ring .track { fill: none; stroke: var(--line); stroke-width: 6; }
+    .nutrient-ring .prog { fill: none; stroke-width: 6; stroke-linecap: round;
+      transition: stroke-dashoffset 300ms ease; }
+    .nutrient-ring[data-key="p"]  .prog { stroke: #c7665a; }
+    .nutrient-ring[data-key="fi"] .prog { stroke: var(--sage); }
+    .nutrient-ring[data-key="fa"] .prog { stroke: var(--amber); }
+    .nutrient-ring[data-key="c"]  .prog { stroke: var(--sky); }
+    .nutrient-ring .label { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+    .nutrient-ring .value { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--fg); }
+    .nutrient-ring .ring-wrap { position: relative; }
+    .nutrient-ring .ring-center { position: absolute; inset: 0; display: flex;
+      flex-direction: column; align-items: center; justify-content: center; gap: 0; }
+    .nutrient-ring .ring-center .num { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--fg); }
+    .nutrient-ring .ring-center .denom { font-size: 9px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
     /* macros pills inside hero */
     .hero .macros-block { padding: 8px 0 4px; }
     .hero .macros-block .macros-title { color: var(--muted); font-size: 12px; margin-bottom: 6px; letter-spacing: 0.04em; text-transform: uppercase; }
@@ -196,7 +291,6 @@
       <a href="#" id="link-today">Today</a>
       <a href="#" id="link-timeline">Timeline</a>
       <a href="#" id="link-settings">Settings</a>
-      <a href="#" id="link-tracking">Tracking</a>
       <a href="#" id="link-export">Export</a>
     </div>
     <button id="save-btn">Save today</button>

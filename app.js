@@ -10,7 +10,7 @@ const items = ensureItems(storage);
 
 const date = todayKey();
 const existing = storage.getEntry(date);
-const baseExtras = { waterOz: 0, steps: 0, snacks: [], fastStartedAt: null, fastEndedAt: null };
+const baseExtras = { waterOz: 0, steps: 0, snacks: [], fastStartedAt: null, fastEndedAt: null, fastGoalHours: DEFAULT_FAST_GOAL_HOURS };
 const entry = existing
   ? { ...baseExtras, ...mergeIntoEntry(existing, items) }
   : { ...blankEntry(date, items), ...baseExtras };
@@ -22,6 +22,26 @@ let snackFormOpen = false;
 let fastEditOpen = false;
 let view = "main";
 let tickerHandle = null;
+
+// Fasting goal in hours. Persisted on the entry so each day's goal is independent.
+const DEFAULT_FAST_GOAL_HOURS = 14;
+const FAST_GOAL_OPTIONS = [14, 16, 18, 20, 24];
+
+const FAST_STAGES = [
+  { from: 0,  to: 4,   name: "Fed",       desc: "Digesting your last meal." },
+  { from: 4,  to: 12,  name: "Glycogen",  desc: "Body burning stored sugar." },
+  { from: 12, to: 16,  name: "Ketosis",   desc: "Fat-burning ramping up." },
+  { from: 16, to: 18,  name: "Deep Ketosis", desc: "Energy from ketones." },
+  { from: 18, to: 24,  name: "Autophagy", desc: "Cellular cleanup begins." },
+  { from: 24, to: Infinity, name: "Deep Autophagy", desc: "Stem cell renewal." },
+];
+
+function currentFastStage(hours) {
+  for (const s of FAST_STAGES) {
+    if (hours >= s.from && hours < s.to) return s;
+  }
+  return FAST_STAGES[FAST_STAGES.length - 1];
+}
 
 function fmtTitle(d) {
   const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -74,6 +94,11 @@ function endFast() {
     renderToday();
   }
 }
+function setFastGoal(h) {
+  entry.fastGoalHours = Number(h) || DEFAULT_FAST_GOAL_HOURS;
+  persist();
+  renderToday();
+}
 
 function addWater(oz) {
   entry.waterOz = (entry.waterOz ?? 0) + oz;
@@ -111,9 +136,9 @@ function pct(value, target) {
 function startTicker() {
   if (tickerHandle) return;
   tickerHandle = setInterval(() => {
-    if (view === "main" && entry.fastStartedAt && !entry.fastEndedAt) {
-      const pill = document.querySelector("#fasting-pill .value");
-      if (pill) pill.textContent = `Fasting: ${fmtDuration(fastDurationMs(entry.fastStartedAt, null))}`;
+    if (view === "main" && entry.fastStartedAt && !entry.fastEndedAt && !fastEditOpen) {
+      // Re-render only the fast block to keep ring + time in sync
+      renderToday();
     }
   }, 60_000);
 }
@@ -126,73 +151,138 @@ function newSnackId() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+function ringSvg({ pct: p, radius = 56, stroke = 10, trackClass = "track", progClass = "progress" }) {
+  const c = 2 * Math.PI * radius;
+  const offset = c * (1 - Math.max(0, Math.min(1, p / 100)));
+  const size = (radius + stroke) * 2;
+  return `
+    <svg viewBox="0 0 ${size} ${size}">
+      <circle class="${trackClass}" cx="${size/2}" cy="${size/2}" r="${radius}"
+              stroke-width="${stroke}" />
+      <circle class="${progClass}" cx="${size/2}" cy="${size/2}" r="${radius}"
+              stroke-width="${stroke}"
+              stroke-dasharray="${c}"
+              stroke-dashoffset="${offset}" />
+    </svg>
+  `;
+}
+
 function paintHeroCard(root) {
   const hero = document.createElement("div");
   hero.className = "hero";
 
-  // Fasting row
+  // Fasting block
   const fast = document.createElement("div");
-  fast.className = "hero-row";
+  fast.className = "fast-block";
   fast.id = "fasting-pill";
+  const goalH = entry.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
+  const goalMs = goalH * 3600 * 1000;
+
   if (entry.fastStartedAt && !entry.fastEndedAt) {
-    if (fastEditOpen) {
-      const startInput = toLocalDatetimeInput(new Date(entry.fastStartedAt));
-      fast.innerHTML = `
-        <span class="glyph">⏱</span>
-        <span class="label">Started</span>
-        <input type="datetime-local" id="fast-start-input" value="${startInput}" />
-        <button id="fast-start-save" class="primary">Save</button>
-        <button id="fast-edit-cancel">Cancel</button>
-      `;
-    } else {
-      fast.innerHTML = `
-        <span class="glyph">⏱</span>
-        <span class="label">Fasting</span>
-        <span class="value grow">${fmtDuration(fastDurationMs(entry.fastStartedAt, null))}</span>
-        <button id="fast-edit">edit start</button>
-        <button id="end-fast">End fast</button>
-      `;
-    }
-  } else if (entry.fastStartedAt && entry.fastEndedAt) {
+    const ms = fastDurationMs(entry.fastStartedAt, null);
+    const hours = ms / 3600000;
+    const stage = currentFastStage(hours);
+    const ringPct = Math.min(100, (ms / goalMs) * 100);
+    const remainMs = Math.max(0, goalMs - ms);
+    const isComplete = ms >= goalMs;
+    const timeLabel = isComplete ? "elapsed" : "remaining";
+    const timeValue = isComplete
+      ? fmtDuration(ms)
+      : fmtDuration(remainMs);
+
     fast.innerHTML = `
-      <span class="glyph">⏱</span>
-      <span class="label">Fasted</span>
-      <span class="value grow">${fmtDuration(fastDurationMs(entry.fastStartedAt, entry.fastEndedAt))} ✓</span>
+      <div class="fast-ring${isComplete ? " complete" : ""}">
+        ${ringSvg({ pct: ringPct })}
+        <div class="center">
+          <span class="icon">🩸</span>
+          <span class="stage">${stage.name}</span>
+        </div>
+      </div>
+      <div class="fast-info">
+        <div class="fast-time">${timeValue}</div>
+        <div class="fast-time-label">${timeLabel} · ${goalH}h goal</div>
+        <div class="stage-detail">${stage.desc}</div>
+        <div class="fast-actions">
+          ${fastEditOpen ? `
+            <input type="datetime-local" id="fast-start-input" value="${toLocalDatetimeInput(new Date(entry.fastStartedAt))}" />
+            <button id="fast-start-save">Save</button>
+            <button class="ghost" id="fast-edit-cancel">Cancel</button>
+          ` : `
+            <button id="end-fast">End Fasting</button>
+            <button class="ghost" id="fast-edit">edit start</button>
+          `}
+        </div>
+      </div>
+    `;
+  } else if (entry.fastStartedAt && entry.fastEndedAt) {
+    const ms = fastDurationMs(entry.fastStartedAt, entry.fastEndedAt);
+    const ringPct = Math.min(100, (ms / goalMs) * 100);
+    const stage = currentFastStage(ms / 3600000);
+    fast.innerHTML = `
+      <div class="fast-ring complete">
+        ${ringSvg({ pct: ringPct })}
+        <div class="center">
+          <span class="icon">✓</span>
+          <span class="stage">Done</span>
+        </div>
+      </div>
+      <div class="fast-info">
+        <div class="fast-time">${fmtDuration(ms)}</div>
+        <div class="fast-time-label">fasted · reached ${stage.name}</div>
+      </div>
     `;
   } else {
     fast.innerHTML = `
-      <span class="glyph">⏱</span>
-      <span class="label">Fasting</span>
-      <span class="value grow">not started</span>
-      <button id="start-fast" class="primary">Start fast</button>
+      <div class="fast-ring">
+        ${ringSvg({ pct: 0 })}
+        <div class="center">
+          <span class="icon">⏱</span>
+          <span class="stage">Eating</span>
+        </div>
+      </div>
+      <div class="fast-info">
+        <div class="fast-time">${goalH}h</div>
+        <div class="fast-time-label">goal</div>
+        <div class="fast-actions">
+          <button id="start-fast">Start Fasting</button>
+          <select id="fast-goal-select">
+            ${FAST_GOAL_OPTIONS.map(o => `<option value="${o}" ${o === goalH ? "selected" : ""}>${o}h</option>`).join("")}
+          </select>
+        </div>
+      </div>
     `;
   }
   hero.appendChild(fast);
 
-  // Water row
+  // Water block — glass + actions
   const w = entry.waterOz ?? 0;
-  const wpct = pct(w, 140);
+  const wpct = Math.min(100, Math.round((w / 140) * 100));
   const water = document.createElement("div");
-  water.className = "hero-row";
+  water.className = "water-block";
   water.id = "water-row";
   water.innerHTML = `
-    <span class="glyph">💧</span>
-    <span class="label">Water</span>
-    <span class="value">${w}</span>
-    <span class="target">/ 140 oz</span>
-    <span class="bar"><span style="width: ${wpct}%"></span></span>
-    <span class="sub">${wpct}%</span>
-    <button data-water="8">+8</button>
-    <button data-water="16">+16</button>
-    ${lastWaterDelta > 0 ? `<a class="undo" id="water-undo">undo</a>` : ""}
+    <div class="water-glass">
+      <div class="outline">
+        <div class="water-fill" style="height: ${wpct}%"></div>
+      </div>
+    </div>
+    <div class="water-info">
+      <div class="water-value">${w}<span style="font-size:14px;color:var(--muted);font-weight:500"> oz</span></div>
+      <div class="water-target">of 140 oz · ${wpct}%${w >= 140 ? " ✓" : ""}</div>
+      <div class="water-actions">
+        <button data-water="8">+8 oz</button>
+        <button data-water="16">+16 oz</button>
+        ${lastWaterDelta > 0 ? `<a class="undo" id="water-undo">undo</a>` : ""}
+      </div>
+    </div>
   `;
   hero.appendChild(water);
 
-  // Steps row
+  // Steps block (compact row)
   const s = entry.steps ?? 0;
   const spct = pct(s, 10000);
   const steps = document.createElement("div");
-  steps.className = "hero-row";
+  steps.className = "steps-block";
   steps.id = "steps-row";
   steps.innerHTML = `
     <span class="glyph">👟</span>
@@ -204,13 +294,13 @@ function paintHeroCard(root) {
   `;
   hero.appendChild(steps);
 
-  // Macros block
+  // Nutrient rings
   const t = macroTotals();
-  const macroBlock = document.createElement("div");
-  macroBlock.className = "macros-block";
-  macroBlock.id = "macros-block";
-  macroBlock.innerHTML = renderMacrosBlock(t);
-  hero.appendChild(macroBlock);
+  const nut = document.createElement("div");
+  nut.className = "nutrients-block";
+  nut.id = "macros-block";
+  nut.innerHTML = renderNutrientRings(t);
+  hero.appendChild(nut);
 
   // Snacks block
   const snacksBlock = document.createElement("div");
@@ -219,6 +309,40 @@ function paintHeroCard(root) {
   hero.appendChild(snacksBlock);
 
   root.appendChild(hero);
+}
+
+function renderNutrientRings(t) {
+  function ring(key, label, value, target) {
+    const p = target ? Math.min(100, Math.round((value / target) * 100)) : 0;
+    const denom = target ? `/ ${target}g` : "g";
+    return `
+      <div class="nutrient-ring" data-key="${key}">
+        <div class="ring-wrap">
+          <svg viewBox="0 0 64 64">
+            <circle class="track" cx="32" cy="32" r="26" stroke-width="6" />
+            <circle class="prog"  cx="32" cy="32" r="26" stroke-width="6"
+                    stroke-dasharray="${2 * Math.PI * 26}"
+                    stroke-dashoffset="${2 * Math.PI * 26 * (1 - p/100)}"
+                    transform="rotate(-90 32 32)" />
+          </svg>
+          <div class="ring-center">
+            <div class="num">${value}</div>
+            <div class="denom">${denom}</div>
+          </div>
+        </div>
+        <div class="label">${label}</div>
+      </div>
+    `;
+  }
+  return `
+    <div class="nutrients-title">Today's Nutrients</div>
+    <div class="nutrient-rings">
+      ${ring("p",  "Protein", t.p,  125)}
+      ${ring("fi", "Fiber",   t.fi, 35)}
+      ${ring("fa", "Fats",    t.fa, 0)}
+      ${ring("c",  "Carbs",   t.c,  130)}
+    </div>
+  `;
 }
 
 function renderMacrosBlock(t) {
@@ -344,6 +468,11 @@ document.addEventListener("change", (ev) => {
     }
     persist();
     renderToday();
+    return;
+  }
+  if (ev.target.id === "fast-goal-select") {
+    setFastGoal(ev.target.value);
+    return;
   }
 });
 
@@ -419,7 +548,7 @@ document.addEventListener("click", (ev) => {
 const typingTimers = {};
 function refreshMacrosBlock() {
   const block = document.getElementById("macros-block");
-  if (block) block.innerHTML = renderMacrosBlock(macroTotals());
+  if (block) block.innerHTML = renderNutrientRings(macroTotals());
 }
 document.addEventListener("input", (ev) => {
   if (ev.target.matches(".row textarea")) {
@@ -490,10 +619,6 @@ function show() {
     document.getElementById("title").textContent = "Timeline";
     document.getElementById("stat").textContent = "";
     renderHistory(root, storage);
-  } else if (view === "tracking") {
-    document.getElementById("title").textContent = "Tracking";
-    document.getElementById("stat").textContent = "";
-    root.innerHTML = `<div class="empty-page">Tracking view coming soon.</div>`;
   } else {
     renderToday();
   }
@@ -512,11 +637,6 @@ document.getElementById("link-settings").addEventListener("click", (ev) => {
 document.getElementById("link-timeline").addEventListener("click", (ev) => {
   ev.preventDefault();
   view = "timeline";
-  show();
-});
-document.getElementById("link-tracking").addEventListener("click", (ev) => {
-  ev.preventDefault();
-  view = "tracking";
   show();
 });
 document.getElementById("link-export").addEventListener("click", (ev) => {
