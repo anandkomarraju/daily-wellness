@@ -120,6 +120,36 @@
       background: white; border: 1px solid var(--line); }
     section.ordered .row .num { width: 28px; color: var(--muted);
       font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+
+    .settings .flat-list { background: white; border: 1px solid var(--line); border-radius: 12px;
+      padding: 8px 12px; margin-top: 6px; }
+    .settings .flat-list .item { display: flex; gap: 8px; align-items: center; padding: 8px 0;
+      border-top: 1px solid var(--line); flex-wrap: wrap; }
+    .settings .flat-list .item:first-of-type { border-top: 0; }
+    .settings .flat-list .num { width: 28px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .settings .flat-list .item input[type="text"] { flex: 1; min-width: 120px; padding: 8px; font: inherit;
+      border: 1px solid var(--line); border-radius: 8px; }
+    .settings .flat-list .item button { padding: 6px 10px; border-radius: 8px;
+      border: 1px solid var(--line); background: white; }
+    .settings .flat-list .macros-chip { padding: 4px 8px; border-radius: 999px; font-size: 12px;
+      border: 1px solid var(--line); background: white; color: var(--muted); cursor: pointer; }
+    .settings .flat-list .macros-chip.on { background: var(--fg); color: white; border-color: var(--fg); }
+
+    .top-tools { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 14px; }
+    .tool-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      background: white; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+    .tool-row .left { flex: 1; font-size: 14px; }
+    .tool-row button { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line);
+      background: white; cursor: pointer; font: inherit; }
+    .tool-row button.primary { background: var(--fg); color: white; border-color: var(--fg); }
+    .tool-row a.undo { font-size: 12px; color: var(--muted); text-decoration: underline; cursor: pointer; }
+    .log-tally { font-size: 13px; color: var(--muted); padding: 4px 12px;
+      font-variant-numeric: tabular-nums; }
+
+    .row .macros { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+    .row .macros label { display: flex; align-items: center; gap: 2px; font-size: 12px; color: var(--muted); }
+    .row .macros input { width: 56px; padding: 4px 6px; border: 1px solid var(--line);
+      border-radius: 6px; font: inherit; font-variant-numeric: tabular-nums; }
   </style>
 </head>
 <body>
