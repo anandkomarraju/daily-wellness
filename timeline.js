@@ -45,32 +45,28 @@ export function renderTimeline(root, storage, items) {
     return;
   }
 
-  for (const sec of items.sections) {
-    if (sec.items.length === 0) continue;
-    const block = document.createElement("div");
-    block.className = "sec-block";
-    block.dataset.key = sec.key;
-    block.innerHTML = `<h3>${sec.title}</h3>`;
-    for (const it of sec.items) {
-      const row = document.createElement("div");
-      row.className = "row";
-      const label = document.createElement("div");
-      label.className = "label";
-      label.textContent = it.label;
-      row.appendChild(label);
-      const strip = document.createElement("div");
-      strip.className = "strip";
-      for (const date of dates) {
-        const cls = classifyCell(all[date], it.id);
-        const dot = document.createElement("span");
-        dot.className = `dot ${cls}`;
-        dot.title = `${date}: ${cls}`;
-        strip.appendChild(dot);
-      }
-      row.appendChild(strip);
-      block.appendChild(row);
+  const block = document.createElement("div");
+  block.className = "sec-block";
+  const sorted = [...items.items].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  for (const it of sorted) {
+    const row = document.createElement("div");
+    row.className = "row";
+    const label = document.createElement("div");
+    label.className = "label";
+    label.textContent = it.label;
+    row.appendChild(label);
+    const strip = document.createElement("div");
+    strip.className = "strip";
+    for (const date of dates) {
+      const cls = classifyCell(all[date], it.id);
+      const dot = document.createElement("span");
+      dot.className = `dot ${cls}`;
+      dot.title = `${date}: ${cls}`;
+      strip.appendChild(dot);
     }
-    wrap.appendChild(block);
+    row.appendChild(strip);
+    block.appendChild(row);
   }
+  wrap.appendChild(block);
   root.appendChild(wrap);
 }
