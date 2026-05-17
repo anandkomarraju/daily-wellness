@@ -40,27 +40,28 @@ The v1 "By category" layout, the "Nutritional Targets" section, and the "Structu
 
 ---
 
-## New ordered routine (13 items)
+## New ordered routine (14 items)
 
 Items are stored in a flat list. The `order` field continues to determine sequence; defaults are spaced by 10.
 
 | # | id | label | macros? |
 |---|---|---|---|
-| 10  | b12_morning            | Morning B12 Sublingual                          | — |
-| 20  | morning_walk_30        | Morning Walk: 30 mins (Fasted)                  | — |
-| 30  | breakfast              | Breakfast                                        | ✓ |
-| 40  | walk_after_breakfast   | Post-Meal Walk: 10–15 mins                      | — |
-| 50  | nuts_supplements       | Nuts + Vitamin D, K2 MK7, Fish Oil              | ✓ |
-| 60  | recovery_routine       | Recovery Routine: 15–20 mins                    | — |
-| 70  | lunch                  | Lunch                                            | ✓ |
-| 80  | walk_after_lunch       | Post-Meal Walk: 10–15 mins                      | — |
-| 90  | strength_training      | Strength Training                                | — |
-| 100 | dinner                 | Dinner                                           | ✓ |
-| 110 | walk_after_dinner      | Post-Meal Walk: 10–15 mins                      | — |
-| 120 | collagen_coffee        | 1 scoop Collagen in Coffee with Vitamin C       | — |
-| 130 | magnesium_eve          | Evening Magnesium Glycinate                      | — |
+| 10  | b12_morning            | Morning B12 Sublingual                       | — |
+| 20  | morning_walk_30        | Morning Walk: 30 mins (Fasted)               | — |
+| 30  | breakfast              | Breakfast                                     | ✓ |
+| 40  | walk_after_breakfast   | Post-Meal Walk: 10–15 mins                   | — |
+| 50  | nuts                   | Nuts                                          | ✓ |
+| 60  | d_k2_fishoil           | Vitamin D, K2 MK7, Fish Oil                   | — |
+| 70  | recovery_routine       | Recovery Routine: 15–20 mins                 | — |
+| 80  | lunch                  | Lunch                                         | ✓ |
+| 90  | walk_after_lunch       | Post-Meal Walk: 10–15 mins                   | — |
+| 100 | strength_training      | Strength Training                             | — |
+| 110 | dinner                 | Dinner                                        | ✓ |
+| 120 | walk_after_dinner      | Post-Meal Walk: 10–15 mins                   | — |
+| 130 | collagen_coffee        | 1 scoop Collagen in Coffee with Vitamin C    | — |
+| 140 | magnesium_eve          | Evening Magnesium Glycinate                   | — |
 
-Note: `b12_morning`, `morning_walk_30`, `magnesium_eve`, `recovery_routine` (alias of structural / created fresh) are renamed/repurposed from existing IDs where appropriate. New IDs introduced: `breakfast`, `walk_after_breakfast`, `nuts_supplements`, `lunch`, `walk_after_lunch`, `strength_training`, `dinner`, `walk_after_dinner`, `collagen_coffee`. Old IDs (`water_140oz`, `protein_125g`, `fiber_35g`, `carbs_130g_max`, `d_k2_fishoil_pm`, `post_meal_walks`, `evening_flush_30`, `strength_training_45`, `core_stability`, `wall_sits`, `glute_bridges`, `stretch_90_90`, `collagen_7pm`) are dropped from current items but remain readable in old saved entries (Timeline ignores them).
+Note: `b12_morning`, `morning_walk_30`, `magnesium_eve`, `d_k2_fishoil` (renamed from `d_k2_fishoil_pm`) are carried over from prior IDs. New IDs introduced: `breakfast`, `walk_after_breakfast`, `nuts`, `recovery_routine`, `lunch`, `walk_after_lunch`, `strength_training`, `dinner`, `walk_after_dinner`, `collagen_coffee`. Old IDs (`water_140oz`, `protein_125g`, `fiber_35g`, `carbs_130g_max`, `d_k2_fishoil_pm`, `post_meal_walks`, `evening_flush_30`, `strength_training_45`, `core_stability`, `wall_sits`, `glute_bridges`, `stretch_90_90`, `collagen_7pm`) are dropped from current items but remain readable in old saved entries (Timeline ignores them).
 
 Each item has: a checkbox, a `+ note` button (revealing a textarea on demand), and — only on items where `macros: true` — a Log control with four numeric inputs (P/Fi/Fa/C in grams).
 
@@ -71,7 +72,7 @@ Each item has: a checkbox, a `+ note` button (revealing a textarea on demand), a
 Layout, top to bottom:
 
 ```
-Tuesday, May 17 · 5 of 13 done
+Tuesday, May 17 · 5 of 14 done
 
 ⏱ Fasting: 14h 23m              [End fast]
 💧 Water: 24 / 140 oz            [+8 oz] [+16 oz]   undo
@@ -186,7 +187,7 @@ When the app loads and finds `wellness:items` with the old `sections` shape OR n
    - `b12_morning` → `b12_morning`
    - `morning_walk_30` → `morning_walk_30`
    - `magnesium_eve` → `magnesium_eve`
-   - `d_k2_fishoil_pm` → `nuts_supplements` (label gets a fresh new default; only carry over user label if the user had renamed it)
+   - `d_k2_fishoil_pm` → `d_k2_fishoil` (rename only)
    - `collagen_7pm` → `collagen_coffee`
    - All other old IDs (`water_140oz`, `protein_125g`, `fiber_35g`, `carbs_130g_max`, `post_meal_walks`, `evening_flush_30`, `strength_training_45`, `core_stability`, `wall_sits`, `glute_bridges`, `stretch_90_90`) are dropped from current items.
 3. Save the new flat `items` shape back to localStorage.
@@ -218,7 +219,7 @@ Settings becomes a single flat list of items in routine order. Per row:
 - Add a new item via "+ add item" at the bottom of the list. New items get `order = max + 10` and `macros: false` by default.
 - Delete via ✕ (with confirm). Deleted items are removed from the items list; history keeps them.
 - Reorder via ↑/↓ (swap order field with neighbor; works the same as the v2 reorder sub-screen, but at the top level).
-- "Reset to defaults" button at the bottom restores the 13-item default list.
+- "Reset to defaults" button at the bottom restores the 14-item default list.
 - "Edit macros on/off" toggle per item: a small `[macros ✓]` / `[macros ○]` chip on each row that toggles `it.macros`. Allows the user to add macro tracking to any custom item later.
 
 There is no longer a separate "Reorder routine" sub-screen — the main Settings IS the ordered list.
@@ -230,7 +231,7 @@ There is no longer a separate "Reorder routine" sub-screen — the main Settings
 Updated to flat list:
 
 - One block (no section grouping, no per-section accent color).
-- 13 dot strips (one per current item) in routine order, with the same dot semantics (green/grey/red) and 30-day window from v2.
+- 14 dot strips (one per current item) in routine order, with the same dot semantics (green/grey/red) and 30-day window from v2.
 - Items that are macro-tracked show macros tally as small subscript text on the right of the row, summed across the visible window? **Out of scope for now** — keep it pure dot strips. Macros tally lives only on today's page.
 - Items deleted/renamed in the items list still don't appear in Timeline (Timeline iterates current items only — same rule as v2).
 - Empty state, legend, and 30-day window unchanged.
