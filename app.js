@@ -414,11 +414,21 @@ function renderSnacksBlock() {
 function renderToday() {
   document.getElementById("title").textContent = fmtTitle(new Date());
   const { done, total } = countDone(entry);
-  document.getElementById("stat").textContent = `${done} of ${total} done`;
+  document.getElementById("stat").textContent = `${done} of ${total} tracked`;
 
   const root = document.getElementById("app");
   root.innerHTML = "";
   paintHeroCard(root);
+  startTicker();
+}
+
+function renderTracking() {
+  document.getElementById("title").textContent = "Today's Routine";
+  const { done, total } = countDone(entry);
+  document.getElementById("stat").textContent = `${done} of ${total} done`;
+
+  const root = document.getElementById("app");
+  root.innerHTML = "";
 
   const sec = document.createElement("section");
   sec.className = "ordered";
@@ -452,7 +462,6 @@ function renderToday() {
     sec.appendChild(row);
   });
   root.appendChild(sec);
-  startTicker();
 }
 
 document.addEventListener("change", (ev) => {
@@ -619,6 +628,8 @@ function show() {
     document.getElementById("title").textContent = "Timeline";
     document.getElementById("stat").textContent = "";
     renderHistory(root, storage);
+  } else if (view === "tracking") {
+    renderTracking();
   } else {
     renderToday();
   }
@@ -627,6 +638,11 @@ function show() {
 document.getElementById("link-today").addEventListener("click", (ev) => {
   ev.preventDefault();
   view = "main";
+  show();
+});
+document.getElementById("link-tracking").addEventListener("click", (ev) => {
+  ev.preventDefault();
+  view = "tracking";
   show();
 });
 document.getElementById("link-settings").addEventListener("click", (ev) => {
