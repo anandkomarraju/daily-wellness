@@ -127,82 +127,57 @@ it("mergeIntoEntry preserves existing checks/comments and adds new items as blan
   eq(merged.items.b, { label: "B", checked: false, comment: "" });
 });
 
-it("defaultItems assigns order to every item, multiples of 10, ascending", () => {
-  const all = defaultItems().sections.flatMap(s => s.items);
-  for (const it of all) {
-    if (typeof it.order !== "number") throw new Error("missing order: " + it.id);
-    if (it.order % 10 !== 0) throw new Error("order not multiple of 10: " + it.id + "=" + it.order);
-  }
-  const orders = all.map(i => i.order).sort((a,b) => a - b);
-  for (let i = 1; i < orders.length; i++) {
-    if (orders[i] === orders[i-1]) throw new Error("duplicate order: " + orders[i]);
-  }
+it("v3 defaultItems is flat with 14 items", () => {
+  const di = defaultItems();
+  if (!Array.isArray(di.items)) throw new Error("not flat");
+  if (di.items.length !== 14) throw new Error("count: " + di.items.length);
 });
 
-it("defaultItems orders water_140oz first, b12_morning second, morning_walk_30 third", () => {
-  const flat = defaultItems().sections.flatMap(s => s.items);
-  const byId = Object.fromEntries(flat.map(i => [i.id, i.order]));
-  if (!(byId.water_140oz < byId.b12_morning && byId.b12_morning < byId.morning_walk_30))
-    throw new Error("default sequence wrong: " + JSON.stringify(byId));
+it("v3 defaultItems orders are multiples of 10 ascending", () => {
+  const di = defaultItems();
+  const orders = di.items.map(i => i.order);
+  for (let i=1; i<orders.length; i++) if (orders[i] <= orders[i-1]) throw new Error("not ascending");
+  for (const o of orders) if (o % 10 !== 0) throw new Error("not multiple of 10: "+o);
 });
 
-it("ensureItems migrates legacy items missing order field", () => {
+it("v3 defaultItems first three are b12, morning walk, breakfast", () => {
+  const ids = defaultItems().items.slice(0,3).map(i => i.id);
+  eq(ids, ["b12_morning","morning_walk_30","breakfast"]);
+});
+
+it("v3 defaultItems marks 4 logged items with macros:true", () => {
+  const macroIds = defaultItems().items.filter(i => i.macros === true).map(i => i.id).sort();
+  eq(macroIds, ["breakfast","dinner","lunch","nuts"]);
+});
+
+it("v3 ensureItems migrates v2 sectioned shape to flat v3", () => {
   const s = fresh();
-  const legacy = {
-    sections: [
-      { key: "nutrition", title: "Nutritional Targets", items: [
-        { id: "water_140oz", label: "Water" },
-        { id: "protein_125g", label: "Protein" },
-      ]},
-      { key: "supplements", title: "Supplement Checklist", items: [
-        { id: "b12_morning", label: "B12" },
-      ]},
-    ],
-  };
-  s.saveItems(legacy);
-  const result = ensureItems(s);
-  const flat = result.sections.flatMap(sec => sec.items);
-  for (const it of flat) {
-    if (typeof it.order !== "number") throw new Error("migration missed: " + it.id);
-  }
-  const reloaded = s.getItems().sections.flatMap(sec => sec.items);
-  for (const it of reloaded) {
-    if (typeof it.order !== "number") throw new Error("not persisted: " + it.id);
-  }
+  s.saveItems({ sections: [
+    { key: "supplements", title: "S", items: [
+      { id: "b12_morning", label: "My custom B12", order: 20 },
+      { id: "d_k2_fishoil_pm", label: "My custom D", order: 80 },
+      { id: "collagen_7pm", label: "My custom collagen", order: 140 },
+    ]},
+  ]});
+  const r = ensureItems(s);
+  if (!Array.isArray(r.items)) throw new Error("not flat");
+  if (r.items.length !== 14) throw new Error("expected 14 after migration, got " + r.items.length);
+  const byId = Object.fromEntries(r.items.map(i => [i.id, i.label]));
+  if (byId.b12_morning !== "My custom B12") throw new Error("b12 label not preserved");
+  if (byId.d_k2_fishoil !== "My custom D") throw new Error("d_k2 rename mapping");
+  if (byId.collagen_coffee !== "My custom collagen") throw new Error("collagen rename mapping");
 });
 
-it("ensureItems migration uses default sequence for known ids and falls back for unknown", () => {
+it("v3 ensureItems idempotent on flat shape", () => {
   const s = fresh();
-  const legacy = {
-    sections: [
-      { key: "nutrition", title: "N", items: [
-        { id: "water_140oz", label: "Water" },
-        { id: "my_custom_item", label: "Custom" },
-      ]},
-    ],
-  };
-  s.saveItems(legacy);
-  const result = ensureItems(s);
-  const byId = Object.fromEntries(result.sections.flatMap(sec => sec.items).map(i => [i.id, i.order]));
-  if (typeof byId.water_140oz !== "number") throw new Error("known not assigned");
-  if (typeof byId.my_custom_item !== "number") throw new Error("unknown not assigned");
-  if (byId.my_custom_item <= byId.water_140oz) throw new Error("unknown not at end");
+  s.saveItems({items:[{id:"a",label:"A",order:10}]});
+  ensureItems(s);
+  if (s.getItems().items.length !== 1) throw new Error("idempotency broken");
 });
 
-it("ensureItems is idempotent: items with order are not re-assigned", () => {
-  const s = fresh();
-  const already = {
-    sections: [
-      { key: "x", title: "X", items: [
-        { id: "a", label: "A", order: 5 },
-        { id: "b", label: "B", order: 7 },
-      ]},
-    ],
-  };
-  s.saveItems(already);
-  const result = ensureItems(s);
-  const byId = Object.fromEntries(result.sections.flatMap(sec => sec.items).map(i => [i.id, i.order]));
-  if (byId.a !== 5 || byId.b !== 7) throw new Error("idempotency broken: " + JSON.stringify(byId));
+it("v3 nextOrder works on flat shape", () => {
+  const r = nextOrder({items:[{id:"a",label:"A",order:30}]});
+  if (r !== 40) throw new Error("nextOrder: " + r);
 });
 
 it("computeDateWindow returns up to 30 dates ending in today, ascending", () => {
