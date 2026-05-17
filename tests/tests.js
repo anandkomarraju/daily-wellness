@@ -1,6 +1,7 @@
 import { Storage } from "../storage.js";
 import { defaultItems, ensureItems, nextOrder } from "../items.js";
 import { todayKey, blankEntry, countDone, mergeIntoEntry, snapshotItems } from "../entry.js";
+import { computeDateWindow, classifyCell } from "../timeline.js";
 
 const results = [];
 function it(name, fn) {
@@ -219,6 +220,38 @@ it("ensureItems is idempotent: items with order are not re-assigned", () => {
   const result = ensureItems(s);
   const byId = Object.fromEntries(result.sections.flatMap(sec => sec.items).map(i => [i.id, i.order]));
   if (byId.a !== 5 || byId.b !== 7) throw new Error("idempotency broken: " + JSON.stringify(byId));
+});
+
+it("computeDateWindow returns up to 30 dates ending in today, ascending", () => {
+  const today = new Date(2026, 4, 17);
+  const w = computeDateWindow(today, 5);
+  eq(w, ["2026-05-13","2026-05-14","2026-05-15","2026-05-16","2026-05-17"]);
+});
+
+it("computeDateWindow caps at 30 days when given a larger N", () => {
+  const today = new Date(2026, 4, 17);
+  const w = computeDateWindow(today, 100);
+  eq(w.length, 30);
+  eq(w[w.length - 1], "2026-05-17");
+});
+
+it("classifyCell returns red when entry is missing", () => {
+  eq(classifyCell(null, "any_id"), "red");
+});
+
+it("classifyCell returns green when item checked", () => {
+  const e = { items: { a: { checked: true, comment: "" } } };
+  eq(classifyCell(e, "a"), "green");
+});
+
+it("classifyCell returns grey when entry exists but item is unchecked", () => {
+  const e = { items: { a: { checked: false, comment: "" } } };
+  eq(classifyCell(e, "a"), "grey");
+});
+
+it("classifyCell returns red when item not in entry's items map", () => {
+  const e = { items: { other: { checked: true } } };
+  eq(classifyCell(e, "missing_id"), "red");
 });
 
 // Render
