@@ -110,6 +110,16 @@
       .timeline .row { flex-direction: column; align-items: flex-start; gap: 4px; }
       .timeline .row .label { font-size: 13px; }
     }
+    .layout-toggle { display: inline-flex; border: 1px solid var(--line);
+      border-radius: 10px; overflow: hidden; margin: 6px 0 12px; background: white; }
+    .layout-toggle button { padding: 8px 14px; border: 0; background: white;
+      color: var(--muted); font: inherit; cursor: pointer; }
+    .layout-toggle button.active { background: var(--fg); color: white; }
+
+    section.ordered { margin: 18px 0; padding: 12px 14px; border-radius: 12px;
+      background: white; border: 1px solid var(--line); }
+    section.ordered .row .num { width: 28px; color: var(--muted);
+      font-variant-numeric: tabular-nums; flex: 0 0 auto; }
   </style>
 </head>
 <body>
@@ -124,6 +134,7 @@
     <div>
       <a href="#" id="link-history">History</a>
       <a href="#" id="link-settings">Settings</a>
+      <a href="#" id="link-timeline">Timeline</a>
       <a href="#" id="link-export">Export</a>
     </div>
     <button id="save-btn">Save today</button>
