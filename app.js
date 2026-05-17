@@ -33,6 +33,7 @@ if (!Array.isArray(entry.snacks)) entry.snacks = [];
 let lastWaterDelta = 0;
 let snackFormOpen = false;
 let fastEditOpen = false;
+let openDetail = null; // null | "fast" | "water" | "steps" | "nutrients" | "routine"
 let view = "main";
 let tickerHandle = null;
 
@@ -168,42 +169,169 @@ function ringSvg({ pct: p, radius = 56, stroke = 10, trackClass = "track", progC
   `;
 }
 
+function computeScores() {
+  // Each metric → 0..1 contribution to overall score
+  const goalH = entry.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
+  const goalMs = goalH * 3600 * 1000;
+  const fastMs = entry.fastStartedAt
+    ? fastDurationMs(entry.fastStartedAt, entry.fastEndedAt)
+    : 0;
+  const fastFrac = Math.min(1, fastMs / goalMs);
+
+  const w = entry.waterOz ?? 0;
+  const waterFrac = Math.min(1, w / 140);
+
+  const s = entry.steps ?? 0;
+  const stepsFrac = Math.min(1, s / 10000);
+
+  const t = macroTotals();
+  // Nutrient sub-score: avg of P/Fi/C-under-goal (3 metrics that have explicit targets)
+  const pFrac  = Math.min(1, t.p / 125);
+  const fiFrac = Math.min(1, t.fi / 35);
+  const cFrac  = t.c <= 90 && t.c > 0 ? 1 : (t.c === 0 ? 0 : Math.max(0, 1 - (t.c - 90) / 90));
+  const suFrac = t.su <= 40 ? Math.min(1, t.su / 40) : Math.max(0, 1 - (t.su - 40) / 40);
+  const nutFrac = (pFrac + fiFrac + cFrac + suFrac) / 4;
+
+  const { done, total } = countDone(entry);
+  const routineFrac = total > 0 ? done / total : 0;
+
+  // Overall = weighted average
+  const overall = Math.round((fastFrac * 0.25 + waterFrac * 0.20 + stepsFrac * 0.15 + nutFrac * 0.20 + routineFrac * 0.20) * 100);
+
+  return {
+    overall,
+    fast: Math.round(fastFrac * 100),
+    water: Math.round(waterFrac * 100),
+    steps: Math.round(stepsFrac * 100),
+    nutrients: Math.round(nutFrac * 100),
+    routine: Math.round(routineFrac * 100),
+  };
+}
+
+function scoreTagline(score) {
+  if (score >= 90) return `Outstanding day. Keep it going.`;
+  if (score >= 75) return `Strong progress. <strong>Almost there.</strong>`;
+  if (score >= 50) return `Good momentum. Keep pushing.`;
+  if (score >= 25) return `Get moving. <strong>You've got this.</strong>`;
+  return `Let's start the day strong.`;
+}
+
 function paintHeroCard(root) {
   const hero = document.createElement("div");
   hero.className = "hero";
 
-  // Fasting block
-  const fast = document.createElement("div");
-  fast.className = "fast-block";
-  fast.id = "fasting-pill";
+  const scores = computeScores();
+  const t = macroTotals();
+  const goalH = entry.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
+  const isFasting = entry.fastStartedAt && !entry.fastEndedAt;
+  const fastMs = entry.fastStartedAt
+    ? fastDurationMs(entry.fastStartedAt, entry.fastEndedAt)
+    : 0;
+  const stage = entry.fastStartedAt ? currentFastStage(fastMs / 3600000) : null;
+  const w = entry.waterOz ?? 0;
+  const s = entry.steps ?? 0;
+  const { done, total } = countDone(entry);
+
+  // === Big score ring ===
+  const scoreBlock = document.createElement("div");
+  scoreBlock.className = "score-block";
+  const r = 95;
+  const c = 2 * Math.PI * r;
+  const off = c * (1 - scores.overall / 100);
+  scoreBlock.innerHTML = `
+    <div class="score-ring">
+      <svg viewBox="0 0 220 220">
+        <circle class="track" cx="110" cy="110" r="${r}" stroke-width="8" />
+        <circle class="prog"  cx="110" cy="110" r="${r}" stroke-width="8"
+                stroke-dasharray="${c}" stroke-dashoffset="${off}" />
+      </svg>
+      <div class="center">
+        <div class="num">${scores.overall}</div>
+        <div class="denom">Today</div>
+        <div class="label">Wellness Score</div>
+      </div>
+    </div>
+    <div class="score-tagline">${scoreTagline(scores.overall)}</div>
+  `;
+  hero.appendChild(scoreBlock);
+
+  // === 5 stat pills ===
+  const pills = document.createElement("div");
+  pills.className = "stat-pills";
+  function pillClass(metric, frac, isWarn) {
+    let cls = "stat-pill";
+    if (isWarn) cls += " warn";
+    else if (frac >= 100) cls += " complete";
+    if (openDetail === metric) cls += " active";
+    return cls;
+  }
+  // Sugar warning if total > 40g for the day
+  const sugarWarn = t.su > 40;
+  // Fasting display
+  const fastDisplay = isFasting
+    ? fmtDuration(fastMs).replace(/^0h /, '')
+    : (entry.fastStartedAt ? `${fmtDuration(fastMs).replace(/^0h /, '')} ✓` : `${goalH}h`);
+
+  pills.innerHTML = `
+    <div class="${pillClass('fast', scores.fast)}" data-pill="fast">
+      <span class="pill-icon">🩸</span>
+      <span class="pill-value">${fastDisplay}</span>
+      <span class="pill-label">Fast</span>
+    </div>
+    <div class="${pillClass('water', scores.water)}" data-pill="water">
+      <span class="pill-icon">💧</span>
+      <span class="pill-value">${w}</span>
+      <span class="pill-label">Water oz</span>
+    </div>
+    <div class="${pillClass('steps', scores.steps)}" data-pill="steps">
+      <span class="pill-icon">👟</span>
+      <span class="pill-value">${s >= 1000 ? (s/1000).toFixed(1) + 'k' : s}</span>
+      <span class="pill-label">Steps</span>
+    </div>
+    <div class="${pillClass('nutrients', scores.nutrients, sugarWarn)}" data-pill="nutrients">
+      <span class="pill-icon">🍽️</span>
+      <span class="pill-value">${scores.nutrients}%</span>
+      <span class="pill-label">Macros</span>
+    </div>
+    <div class="${pillClass('routine', scores.routine)}" data-pill="routine">
+      <span class="pill-icon">✓</span>
+      <span class="pill-value">${done}/${total}</span>
+      <span class="pill-label">Routine</span>
+    </div>
+  `;
+  hero.appendChild(pills);
+
+  // === Detail panel for the open metric ===
+  if (openDetail) {
+    const panel = document.createElement("div");
+    panel.className = "detail-panel";
+    panel.id = "detail-panel";
+    panel.innerHTML = renderDetailPanel(openDetail);
+    hero.appendChild(panel);
+  }
+
+  root.appendChild(hero);
+}
+
+function renderDetailPanel(which) {
   const goalH = entry.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
   const goalMs = goalH * 3600 * 1000;
 
-  if (entry.fastStartedAt && !entry.fastEndedAt) {
-    const ms = fastDurationMs(entry.fastStartedAt, null);
-    const hours = ms / 3600000;
-    const stage = currentFastStage(hours);
-    const ringPct = Math.min(100, (ms / goalMs) * 100);
-    const remainMs = Math.max(0, goalMs - ms);
-    const isComplete = ms >= goalMs;
-    const timeLabel = isComplete ? "elapsed" : "remaining";
-    const timeValue = isComplete
-      ? fmtDuration(ms)
-      : fmtDuration(remainMs);
-
-    fast.innerHTML = `
-      <div class="fast-ring${isComplete ? " complete" : ""}">
-        ${ringSvg({ pct: ringPct })}
-        <div class="center">
-          <span class="icon">🩸</span>
-          <span class="stage">${stage.name}</span>
-        </div>
-      </div>
-      <div class="fast-info">
-        <div class="fast-time">${timeValue}</div>
-        <div class="fast-time-label">${timeLabel} · ${goalH}h goal</div>
-        <div class="stage-detail">${stage.desc}</div>
-        <div class="fast-actions">
+  if (which === "fast") {
+    if (entry.fastStartedAt && !entry.fastEndedAt) {
+      const ms = fastDurationMs(entry.fastStartedAt, null);
+      const stage = currentFastStage(ms / 3600000);
+      const fpct = Math.min(100, Math.round((ms / goalMs) * 100));
+      const remainMs = Math.max(0, goalMs - ms);
+      const isComplete = ms >= goalMs;
+      return `
+        <div class="detail-title">⏱ Intermittent Fasting</div>
+        <div class="detail-row"><span class="key">Stage</span> <span class="val">${stage.name}</span></div>
+        <div class="detail-row"><span class="key">Elapsed</span> <span class="val">${fmtDuration(ms)}</span></div>
+        <div class="detail-row"><span class="key">${isComplete ? 'Past goal' : 'Remaining'}</span> <span class="val">${isComplete ? '+' + fmtDuration(ms - goalMs) : fmtDuration(remainMs)}</span></div>
+        <div class="detail-row"><span class="key">Progress</span> <span class="mini-bar fast"><span style="width:${fpct}%"></span></span> <span class="val">${fpct}%</span></div>
+        <div class="detail-row" style="font-size:12px; color:rgba(232,237,245,0.55); font-style:italic; padding-top:4px;">${stage.desc}</div>
+        <div class="detail-row" style="margin-top:8px;">
           ${fastEditOpen ? `
             <input type="datetime-local" id="fast-start-input" value="${toLocalDatetimeInput(new Date(entry.fastStartedAt))}" />
             <button id="fast-start-save">Save</button>
@@ -213,97 +341,109 @@ function paintHeroCard(root) {
             <button class="ghost" id="fast-edit">edit start</button>
           `}
         </div>
-      </div>
-    `;
-  } else if (entry.fastStartedAt && entry.fastEndedAt) {
-    const ms = fastDurationMs(entry.fastStartedAt, entry.fastEndedAt);
-    const ringPct = Math.min(100, (ms / goalMs) * 100);
-    const stage = currentFastStage(ms / 3600000);
-    fast.innerHTML = `
-      <div class="fast-ring complete">
-        ${ringSvg({ pct: ringPct })}
-        <div class="center">
-          <span class="icon">✓</span>
-          <span class="stage">Done</span>
-        </div>
-      </div>
-      <div class="fast-info">
-        <div class="fast-time">${fmtDuration(ms)}</div>
-        <div class="fast-time-label">fasted · reached ${stage.name}</div>
-      </div>
-    `;
-  } else {
-    fast.innerHTML = `
-      <div class="fast-ring">
-        ${ringSvg({ pct: 0 })}
-        <div class="center">
-          <span class="icon">⏱</span>
-          <span class="stage">Eating</span>
-        </div>
-      </div>
-      <div class="fast-info">
-        <div class="fast-time">${goalH}h</div>
-        <div class="fast-time-label">goal</div>
-        <div class="fast-actions">
+      `;
+    } else if (entry.fastStartedAt && entry.fastEndedAt) {
+      const ms = fastDurationMs(entry.fastStartedAt, entry.fastEndedAt);
+      const stage = currentFastStage(ms / 3600000);
+      return `
+        <div class="detail-title">⏱ Fast Complete</div>
+        <div class="detail-row"><span class="key">Duration</span> <span class="val">${fmtDuration(ms)}</span></div>
+        <div class="detail-row"><span class="key">Reached</span> <span class="val">${stage.name}</span></div>
+      `;
+    } else {
+      return `
+        <div class="detail-title">⏱ Intermittent Fasting</div>
+        <div class="detail-row"><span class="key">Goal</span> <span class="val">${goalH} hours</span></div>
+        <div class="detail-row" style="margin-top:4px;">
           <button id="start-fast">Start Fasting</button>
           <select id="fast-goal-select">
-            ${FAST_GOAL_OPTIONS.map(o => `<option value="${o}" ${o === goalH ? "selected" : ""}>${o}h</option>`).join("")}
+            ${FAST_GOAL_OPTIONS.map(o => `<option value="${o}" ${o === goalH ? "selected" : ""}>${o}h goal</option>`).join("")}
           </select>
         </div>
-      </div>
-    `;
+      `;
+    }
   }
-  hero.appendChild(fast);
 
-  // Water block — glass + actions
-  const w = entry.waterOz ?? 0;
-  const wpct = Math.min(100, Math.round((w / 140) * 100));
-  const water = document.createElement("div");
-  water.className = "water-block";
-  water.id = "water-row";
-  water.innerHTML = `
-    <div class="water-glass">
-      <div class="outline">
-        <div class="water-fill" style="height: ${wpct}%"></div>
-      </div>
-    </div>
-    <div class="water-info">
-      <div class="water-value">${w}<span style="font-size:14px;color:var(--muted);font-weight:500"> oz</span></div>
-      <div class="water-target">of 140 oz · ${wpct}%${w >= 140 ? " ✓" : ""}</div>
-      <div class="water-actions">
+  if (which === "water") {
+    const w = entry.waterOz ?? 0;
+    const wpct = Math.min(100, Math.round((w / 140) * 100));
+    return `
+      <div class="detail-title">💧 Water</div>
+      <div class="detail-row"><span class="key">Today</span> <span class="val">${w} oz</span> <span style="color:rgba(232,237,245,0.5); font-size:13px;">/ 140 oz</span></div>
+      <div class="detail-row"><span class="key">Progress</span> <span class="mini-bar water"><span style="width:${wpct}%"></span></span> <span class="val">${wpct}%${w >= 140 ? ' ✓' : ''}</span></div>
+      <div class="detail-row" style="margin-top:6px;">
         <button data-water="8">+8 oz</button>
         <button data-water="16">+16 oz</button>
         ${lastWaterDelta > 0 ? `<a class="undo" id="water-undo">undo</a>` : ""}
       </div>
-    </div>
-  `;
-  hero.appendChild(water);
+    `;
+  }
 
-  // Steps block (compact row)
-  const s = entry.steps ?? 0;
-  const spct = pct(s, 10000);
-  const steps = document.createElement("div");
-  steps.className = "steps-block";
-  steps.id = "steps-row";
-  steps.innerHTML = `
-    <span class="glyph">👟</span>
-    <span class="label">Steps</span>
-    <input type="number" min="0" inputmode="numeric" id="steps-input" value="${s || ""}" placeholder="0" />
-    <span class="target">/ 10,000</span>
-    <span class="bar"><span style="width: ${spct}%"></span></span>
-    <span class="sub">${spct}%${s >= 10000 ? " ✓" : ""}</span>
-  `;
-  hero.appendChild(steps);
+  if (which === "steps") {
+    const s = entry.steps ?? 0;
+    const spct = pct(s, 10000);
+    return `
+      <div class="detail-title">👟 Steps</div>
+      <div class="detail-row"><span class="key">Today</span>
+        <input type="number" min="0" inputmode="numeric" id="steps-input" value="${s || ""}" placeholder="0" />
+        <span style="color:rgba(232,237,245,0.5); font-size:13px;">/ 10,000</span></div>
+      <div class="detail-row"><span class="key">Progress</span> <span class="mini-bar steps"><span style="width:${spct}%"></span></span> <span class="val">${spct}%${s >= 10000 ? ' ✓' : ''}</span></div>
+    `;
+  }
 
-  // Nutrient rings
-  const t = macroTotals();
-  const nut = document.createElement("div");
-  nut.className = "nutrients-block";
-  nut.id = "macros-block";
-  nut.innerHTML = renderNutrientRings(t);
-  hero.appendChild(nut);
+  if (which === "nutrients") {
+    const t = macroTotals();
+    const sugarWarn = t.su > 40;
+    function ring(key, label, value, target) {
+      const p = target ? Math.min(100, Math.round((value / target) * 100)) : 0;
+      const denom = target ? `/ ${target}g` : "g";
+      return `
+        <div class="detail-ring" data-key="${key}">
+          <div class="ring-wrap">
+            <svg viewBox="0 0 56 56">
+              <circle class="track" cx="28" cy="28" r="22" />
+              <circle class="prog"  cx="28" cy="28" r="22"
+                      stroke-dasharray="${2 * Math.PI * 22}"
+                      stroke-dashoffset="${2 * Math.PI * 22 * (1 - p/100)}"
+                      transform="rotate(-90 28 28)" />
+            </svg>
+            <div class="ring-center">
+              <div class="num">${value}</div>
+              <div class="denom">${denom}</div>
+            </div>
+          </div>
+          <div class="label">${label}</div>
+        </div>
+      `;
+    }
+    return `
+      <div class="detail-title">🍽️ Macros${sugarWarn ? ' · <span style="color:#e89aba">sugar over goal</span>' : ''}</div>
+      <div class="detail-rings">
+        ${ring("p",  "Protein",   t.p,  125)}
+        ${ring("fi", "Fiber",     t.fi, 35)}
+        ${ring("fa", "Fats",      t.fa, 0)}
+        ${ring("c",  "Net Carbs", t.c,  90)}
+        ${ring("su", "Sugar",     t.su, 40)}
+      </div>
+      <div class="detail-row" style="font-size:12px; color:rgba(232,237,245,0.55); margin-top:8px;">
+        Log meals on <strong style="color:#e8edf5">Tracking</strong>.
+      </div>
+    `;
+  }
 
-  root.appendChild(hero);
+  if (which === "routine") {
+    const { done, total } = countDone(entry);
+    const rpct = total > 0 ? Math.round((done / total) * 100) : 0;
+    return `
+      <div class="detail-title">✓ Routine</div>
+      <div class="detail-row"><span class="key">Done</span> <span class="val">${done} of ${total}</span></div>
+      <div class="detail-row"><span class="key">Progress</span> <span class="mini-bar fast"><span style="width:${rpct}%"></span></span> <span class="val">${rpct}%</span></div>
+      <div class="detail-row" style="font-size:12px; color:rgba(232,237,245,0.55); margin-top:8px;">
+        Check items on <strong style="color:#e8edf5">Tracking</strong>.
+      </div>
+    `;
+  }
+  return "";
 }
 
 function renderNutrientRings(t) {
@@ -479,6 +619,15 @@ document.addEventListener("click", (ev) => {
     }
     return;
   }
+  // Stat pill clicks — open / close detail panel
+  const pillEl = ev.target.closest('[data-pill]');
+  if (pillEl) {
+    const which = pillEl.dataset.pill;
+    openDetail = (openDetail === which) ? null : which;
+    fastEditOpen = false; // reset edit mode when changing detail
+    renderToday();
+    return;
+  }
   if (ev.target.id === "start-fast") { startFast(); return; }
   if (ev.target.id === "end-fast")   { endFast(); return; }
   if (ev.target.id === "fast-edit")  { fastEditOpen = true; renderToday(); return; }
@@ -540,8 +689,8 @@ document.addEventListener("click", (ev) => {
 
 const typingTimers = {};
 function refreshMacrosBlock() {
-  const block = document.getElementById("macros-block");
-  if (block) block.innerHTML = renderNutrientRings(macroTotals());
+  // On Today page, re-render the whole hero (score depends on macros).
+  if (view === "main") renderToday();
 }
 document.addEventListener("input", (ev) => {
   if (ev.target.matches(".row textarea")) {
