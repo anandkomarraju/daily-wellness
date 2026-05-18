@@ -33,6 +33,7 @@ if (!Array.isArray(entry.snacks)) entry.snacks = [];
 let lastWaterDelta = 0;
 let snackFormOpen = false;
 let fastEditOpen = false;
+let fastEndEditOpen = false;
 let view = "main";
 let tickerHandle = null;
 
@@ -97,6 +98,18 @@ function endFast() {
     persist();
     rerender();
   }
+}
+function setFastEnd(localStr) {
+  if (!localStr) return;
+  const d = new Date(localStr);
+  if (isNaN(d.getTime())) return;
+  if (!entry.fastStartedAt) return;
+  // Don't allow end before start
+  if (d.getTime() < new Date(entry.fastStartedAt).getTime()) return;
+  entry.fastEndedAt = d.toISOString();
+  fastEndEditOpen = false;
+  persist();
+  rerender();
 }
 function setFastGoal(h) {
   entry.fastGoalHours = Number(h) || DEFAULT_FAST_GOAL_HOURS;
@@ -444,12 +457,29 @@ function renderControlsPanel() {
   } else if (entry.fastStartedAt && entry.fastEndedAt) {
     const ms = fastDurationMs(entry.fastStartedAt, entry.fastEndedAt);
     const stage = currentFastStage(ms / 3600000);
+    const startStr = new Date(entry.fastStartedAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" });
+    const endStr   = new Date(entry.fastEndedAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" });
     fastBlock = `
       <div class="ctrl-row fast complete">
         <div class="ctrl-icon">🩸</div>
         <div class="ctrl-body">
           <div class="ctrl-line"><span class="ctrl-label">Fasted</span> <span class="ctrl-stage">${stage.name} ✓</span></div>
           <div class="ctrl-time">${fmtDuration(ms)}</div>
+          <div class="ctrl-sub">${startStr} → ${endStr}</div>
+          <div class="ctrl-actions">
+            ${fastEditOpen ? `
+              <input type="datetime-local" id="fast-start-input" value="${toLocalDatetimeInput(new Date(entry.fastStartedAt))}" />
+              <button class="primary" id="fast-start-save">Save start</button>
+              <button class="ghost" id="fast-edit-cancel">Cancel</button>
+            ` : fastEndEditOpen ? `
+              <input type="datetime-local" id="fast-end-input" value="${toLocalDatetimeInput(new Date(entry.fastEndedAt))}" />
+              <button class="primary" id="fast-end-save">Save end</button>
+              <button class="ghost" id="fast-end-cancel">Cancel</button>
+            ` : `
+              <button class="ghost" id="fast-edit">edit start</button>
+              <button class="ghost" id="fast-end-edit">edit end</button>
+            `}
+          </div>
         </div>
       </div>
     `;
@@ -602,11 +632,18 @@ document.addEventListener("click", (ev) => {
   }
   if (ev.target.id === "start-fast") { startFast(); return; }
   if (ev.target.id === "end-fast")   { endFast(); return; }
-  if (ev.target.id === "fast-edit")  { fastEditOpen = true; rerender(); return; }
+  if (ev.target.id === "fast-edit")  { fastEditOpen = true; fastEndEditOpen = false; rerender(); return; }
   if (ev.target.id === "fast-edit-cancel") { fastEditOpen = false; rerender(); return; }
   if (ev.target.id === "fast-start-save") {
     const v = document.getElementById("fast-start-input")?.value;
     if (v) setFastStart(v);
+    return;
+  }
+  if (ev.target.id === "fast-end-edit")   { fastEndEditOpen = true; fastEditOpen = false; rerender(); return; }
+  if (ev.target.id === "fast-end-cancel") { fastEndEditOpen = false; rerender(); return; }
+  if (ev.target.id === "fast-end-save") {
+    const v = document.getElementById("fast-end-input")?.value;
+    if (v) setFastEnd(v);
     return;
   }
   if (ev.target.matches('[data-water]')) {
