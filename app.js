@@ -312,11 +312,14 @@ function paintHeroCard(root) {
 }
 
 function renderNutrientRings(t) {
-  function ring(key, label, value, target, unit = "g") {
+  // direction: "min" = green when value >= target (target/atLeast); "max" = green when value <= target (limit)
+  function ring(key, label, value, target, unit = "g", direction = "min") {
     const p = target ? Math.min(100, Math.round((value / target) * 100)) : 0;
     const denom = target ? `/ ${target}${unit}` : unit;
+    const met = direction === "min" ? value >= target : value <= target;
+    const status = met ? "met" : "unmet";
     return `
-      <div class="nutrient-ring" data-key="${key}">
+      <div class="nutrient-ring" data-key="${key}" data-status="${status}">
         <div class="ring-wrap">
           <svg viewBox="0 0 64 64">
             <circle class="track" cx="32" cy="32" r="26" stroke-width="6" />
@@ -337,12 +340,12 @@ function renderNutrientRings(t) {
   return `
     <div class="nutrients-title">Today's Nutrients</div>
     <div class="nutrient-rings">
-      ${ring("kcal","Calories", t.kcal, 1800, "")}
-      ${ring("p",   "Protein",  t.p,    125)}
-      ${ring("fi",  "Fiber",    t.fi,   35)}
-      ${ring("fa",  "Fats",     t.fa,   75)}
-      ${ring("c",   "Net Carbs", t.c,   90)}
-      ${ring("su",  "Sugar",    t.su,   40)}
+      ${ring("kcal","Calories",  t.kcal, 1800, "", "min")}
+      ${ring("p",   "Protein",   t.p,    125,  "g", "min")}
+      ${ring("fi",  "Fiber",     t.fi,   35,   "g", "min")}
+      ${ring("fa",  "Fats",      t.fa,   75,   "g", "max")}
+      ${ring("c",   "Net Carbs", t.c,    90,   "g", "max")}
+      ${ring("su",  "Sugar",     t.su,   40,   "g", "max")}
     </div>
   `;
 }

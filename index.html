@@ -484,6 +484,14 @@
     .nutrient-ring[data-key="c"]  .label { color: #4a6c8c; }
     .nutrient-ring[data-key="su"] .label { color: #b04a7a; }
     .nutrient-ring[data-key="kcal"] .label { color: #4a9b6a; }
+
+    /* Goal-status colors override the per-key gradient strokes */
+    .nutrient-ring[data-status="met"] .prog   { stroke: #4a9b6a; }
+    .nutrient-ring[data-status="unmet"] .prog { stroke: #d94545; }
+    .nutrient-ring[data-status="met"] .label   { color: #4a9b6a; }
+    .nutrient-ring[data-status="unmet"] .label { color: #c44040; }
+    .nutrient-ring[data-status="met"] .ring-center .num   { color: #2d5a3d; }
+    .nutrient-ring[data-status="unmet"] .ring-center .num { color: #8a2828; }
     .nutrient-ring .label { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
     .nutrient-ring .ring-wrap { position: relative; }
     .nutrient-ring .ring-center { position: absolute; inset: 0; display: flex;
