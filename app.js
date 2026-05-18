@@ -546,6 +546,13 @@ function renderTracking() {
   });
   root.appendChild(sec);
 
+  // Nutrient rings — sum of all macros from meals today
+  const nutWrap = document.createElement("section");
+  nutWrap.className = "nutrients-block";
+  nutWrap.id = "macros-block";
+  nutWrap.innerHTML = renderNutrientRings(macroTotals());
+  root.appendChild(nutWrap);
+
   // Snacks block at the bottom
   const snacksWrap = document.createElement("section");
   snacksWrap.className = "ordered snacks-section";
@@ -652,9 +659,14 @@ document.addEventListener("click", (ev) => {
 
 const typingTimers = {};
 function refreshMacrosBlock() {
-  // No-op for Tracking (typing into a macro input shouldn't blow away focus).
-  // On Today page, re-render the whole hero so the score reflects new totals.
-  if (view === "main") renderToday();
+  // On Today: full re-render (score depends on macros).
+  // On Tracking: just update the rings block in place — don't blow away input focus.
+  if (view === "main") {
+    renderToday();
+  } else if (view === "tracking") {
+    const block = document.getElementById("macros-block");
+    if (block) block.innerHTML = renderNutrientRings(macroTotals());
+  }
 }
 document.addEventListener("input", (ev) => {
   if (ev.target.matches(".row textarea")) {
