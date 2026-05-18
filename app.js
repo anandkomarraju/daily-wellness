@@ -33,7 +33,6 @@ if (!Array.isArray(entry.snacks)) entry.snacks = [];
 let lastWaterDelta = 0;
 let snackFormOpen = false;
 let fastEditOpen = false;
-let openDetail = null; // null | "fast" | "water" | "steps" | "nutrients" | "routine"
 let view = "main";
 let tickerHandle = null;
 
@@ -70,13 +69,17 @@ function toLocalDatetimeInput(d) {
   const pad = n => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+function rerender() {
+  if (view === "tracking") renderTracking();
+  else renderToday();
+}
 function startFast() {
   // Default to now; user can edit in the picker.
   entry.fastStartedAt = new Date().toISOString();
   entry.fastEndedAt = null;
   fastEditOpen = true;
   persist();
-  renderToday();
+  rerender();
 }
 function setFastStart(localStr) {
   // localStr is "YYYY-MM-DDTHH:mm" interpreted as local time.
@@ -86,33 +89,33 @@ function setFastStart(localStr) {
   entry.fastStartedAt = d.toISOString();
   fastEditOpen = false;
   persist();
-  renderToday();
+  rerender();
 }
 function endFast() {
   if (entry.fastStartedAt && !entry.fastEndedAt) {
     entry.fastEndedAt = new Date().toISOString();
     persist();
-    renderToday();
+    rerender();
   }
 }
 function setFastGoal(h) {
   entry.fastGoalHours = Number(h) || DEFAULT_FAST_GOAL_HOURS;
   persist();
-  renderToday();
+  rerender();
 }
 
 function addWater(oz) {
   entry.waterOz = (entry.waterOz ?? 0) + oz;
   lastWaterDelta = oz;
   persist();
-  renderToday();
+  rerender();
 }
 function undoWater() {
   if (lastWaterDelta <= 0) return;
   entry.waterOz = Math.max(0, (entry.waterOz ?? 0) - lastWaterDelta);
   lastWaterDelta = 0;
   persist();
-  renderToday();
+  rerender();
 }
 
 function macroTotals() {
@@ -138,9 +141,8 @@ function pct(value, target) {
 function startTicker() {
   if (tickerHandle) return;
   tickerHandle = setInterval(() => {
-    if (view === "main" && entry.fastStartedAt && !entry.fastEndedAt && !fastEditOpen) {
-      // Re-render only the fast block to keep ring + time in sync
-      renderToday();
+    if (entry.fastStartedAt && !entry.fastEndedAt && !fastEditOpen) {
+      rerender();
     }
   }, 60_000);
 }
@@ -255,195 +257,53 @@ function paintHeroCard(root) {
   `;
   hero.appendChild(scoreBlock);
 
-  // === 5 stat pills ===
-  const pills = document.createElement("div");
-  pills.className = "stat-pills";
-  function pillClass(metric, frac, isWarn) {
-    let cls = "stat-pill";
-    if (isWarn) cls += " warn";
-    else if (frac >= 100) cls += " complete";
-    if (openDetail === metric) cls += " active";
-    return cls;
-  }
-  // Sugar warning if total > 40g for the day
+  // === 5 mini progress rings (read-only, always visible) ===
   const sugarWarn = t.su > 40;
-  // Fasting display
+
+  function miniRing(key, icon, primary, secondary, frac, gradId, isWarn) {
+    const r = 26;
+    const c = 2 * Math.PI * r;
+    const off = c * (1 - Math.max(0, Math.min(1, frac / 100)));
+    const cls = isWarn ? "mini-ring warn" : (frac >= 100 ? "mini-ring complete" : "mini-ring");
+    return `
+      <div class="${cls}" data-key="${key}">
+        <div class="mini-wrap">
+          <svg viewBox="0 0 64 64">
+            <circle class="track" cx="32" cy="32" r="${r}" stroke-width="6" />
+            <circle class="prog"  cx="32" cy="32" r="${r}" stroke-width="6"
+                    stroke-dasharray="${c}" stroke-dashoffset="${off}"
+                    stroke="url(#${gradId})"
+                    transform="rotate(-90 32 32)" />
+          </svg>
+          <div class="mini-center">
+            <div class="mini-icon">${icon}</div>
+          </div>
+        </div>
+        <div class="mini-primary">${primary}</div>
+        <div class="mini-secondary">${secondary}</div>
+      </div>
+    `;
+  }
+
   const fastDisplay = isFasting
     ? fmtDuration(fastMs).replace(/^0h /, '')
-    : (entry.fastStartedAt ? `${fmtDuration(fastMs).replace(/^0h /, '')} ✓` : `${goalH}h`);
+    : (entry.fastStartedAt ? `${fmtDuration(fastMs).replace(/^0h /, '')} ✓` : "—");
+  const fastSecondary = isFasting
+    ? (stage ? stage.name : `goal ${goalH}h`)
+    : (entry.fastStartedAt ? "complete" : `goal ${goalH}h`);
 
-  pills.innerHTML = `
-    <div class="${pillClass('fast', scores.fast)}" data-pill="fast">
-      <span class="pill-icon">🩸</span>
-      <span class="pill-value">${fastDisplay}</span>
-      <span class="pill-label">Fast</span>
-    </div>
-    <div class="${pillClass('water', scores.water)}" data-pill="water">
-      <span class="pill-icon">💧</span>
-      <span class="pill-value">${w}</span>
-      <span class="pill-label">Water oz</span>
-    </div>
-    <div class="${pillClass('steps', scores.steps)}" data-pill="steps">
-      <span class="pill-icon">👟</span>
-      <span class="pill-value">${s >= 1000 ? (s/1000).toFixed(1) + 'k' : s}</span>
-      <span class="pill-label">Steps</span>
-    </div>
-    <div class="${pillClass('nutrients', scores.nutrients, sugarWarn)}" data-pill="nutrients">
-      <span class="pill-icon">🍽️</span>
-      <span class="pill-value">${scores.nutrients}%</span>
-      <span class="pill-label">Macros</span>
-    </div>
-    <div class="${pillClass('routine', scores.routine)}" data-pill="routine">
-      <span class="pill-icon">✓</span>
-      <span class="pill-value">${done}/${total}</span>
-      <span class="pill-label">Routine</span>
-    </div>
+  const rings = document.createElement("div");
+  rings.className = "mini-rings";
+  rings.innerHTML = `
+    ${miniRing("fast",      "🩸",  fastDisplay,                                    fastSecondary,                  scores.fast,      "grad-score")}
+    ${miniRing("water",     "💧",  `${w}<span class='unit'> oz</span>`,            `of 140`,                       scores.water,     "grad-carbs")}
+    ${miniRing("steps",     "👟",  s >= 1000 ? `${(s/1000).toFixed(1)}<span class='unit'>k</span>` : `${s}`, `of 10k`,       scores.steps,     "grad-fats")}
+    ${miniRing("nutrients", "🍽️", `${scores.nutrients}<span class='unit'>%</span>`, sugarWarn ? "sugar over" : `P ${t.p} · C ${t.c}`,   scores.nutrients, "grad-fiber", sugarWarn)}
+    ${miniRing("routine",   "✓",   `${done}<span class='unit'>/${total}</span>`,    `done`,                         scores.routine,   "grad-protein")}
   `;
-  hero.appendChild(pills);
-
-  // === Detail panel for the open metric ===
-  if (openDetail) {
-    const panel = document.createElement("div");
-    panel.className = "detail-panel";
-    panel.id = "detail-panel";
-    panel.innerHTML = renderDetailPanel(openDetail);
-    hero.appendChild(panel);
-  }
+  hero.appendChild(rings);
 
   root.appendChild(hero);
-}
-
-function renderDetailPanel(which) {
-  const goalH = entry.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
-  const goalMs = goalH * 3600 * 1000;
-
-  if (which === "fast") {
-    if (entry.fastStartedAt && !entry.fastEndedAt) {
-      const ms = fastDurationMs(entry.fastStartedAt, null);
-      const stage = currentFastStage(ms / 3600000);
-      const fpct = Math.min(100, Math.round((ms / goalMs) * 100));
-      const remainMs = Math.max(0, goalMs - ms);
-      const isComplete = ms >= goalMs;
-      return `
-        <div class="detail-title">⏱ Intermittent Fasting</div>
-        <div class="detail-row"><span class="key">Stage</span> <span class="val">${stage.name}</span></div>
-        <div class="detail-row"><span class="key">Elapsed</span> <span class="val">${fmtDuration(ms)}</span></div>
-        <div class="detail-row"><span class="key">${isComplete ? 'Past goal' : 'Remaining'}</span> <span class="val">${isComplete ? '+' + fmtDuration(ms - goalMs) : fmtDuration(remainMs)}</span></div>
-        <div class="detail-row"><span class="key">Progress</span> <span class="mini-bar fast"><span style="width:${fpct}%"></span></span> <span class="val">${fpct}%</span></div>
-        <div class="detail-row" style="font-size:12px; color:rgba(232,237,245,0.55); font-style:italic; padding-top:4px;">${stage.desc}</div>
-        <div class="detail-row" style="margin-top:8px;">
-          ${fastEditOpen ? `
-            <input type="datetime-local" id="fast-start-input" value="${toLocalDatetimeInput(new Date(entry.fastStartedAt))}" />
-            <button id="fast-start-save">Save</button>
-            <button class="ghost" id="fast-edit-cancel">Cancel</button>
-          ` : `
-            <button id="end-fast">End Fasting</button>
-            <button class="ghost" id="fast-edit">edit start</button>
-          `}
-        </div>
-      `;
-    } else if (entry.fastStartedAt && entry.fastEndedAt) {
-      const ms = fastDurationMs(entry.fastStartedAt, entry.fastEndedAt);
-      const stage = currentFastStage(ms / 3600000);
-      return `
-        <div class="detail-title">⏱ Fast Complete</div>
-        <div class="detail-row"><span class="key">Duration</span> <span class="val">${fmtDuration(ms)}</span></div>
-        <div class="detail-row"><span class="key">Reached</span> <span class="val">${stage.name}</span></div>
-      `;
-    } else {
-      return `
-        <div class="detail-title">⏱ Intermittent Fasting</div>
-        <div class="detail-row"><span class="key">Goal</span> <span class="val">${goalH} hours</span></div>
-        <div class="detail-row" style="margin-top:4px;">
-          <button id="start-fast">Start Fasting</button>
-          <select id="fast-goal-select">
-            ${FAST_GOAL_OPTIONS.map(o => `<option value="${o}" ${o === goalH ? "selected" : ""}>${o}h goal</option>`).join("")}
-          </select>
-        </div>
-      `;
-    }
-  }
-
-  if (which === "water") {
-    const w = entry.waterOz ?? 0;
-    const wpct = Math.min(100, Math.round((w / 140) * 100));
-    return `
-      <div class="detail-title">💧 Water</div>
-      <div class="detail-row"><span class="key">Today</span> <span class="val">${w} oz</span> <span style="color:rgba(232,237,245,0.5); font-size:13px;">/ 140 oz</span></div>
-      <div class="detail-row"><span class="key">Progress</span> <span class="mini-bar water"><span style="width:${wpct}%"></span></span> <span class="val">${wpct}%${w >= 140 ? ' ✓' : ''}</span></div>
-      <div class="detail-row" style="margin-top:6px;">
-        <button data-water="8">+8 oz</button>
-        <button data-water="16">+16 oz</button>
-        ${lastWaterDelta > 0 ? `<a class="undo" id="water-undo">undo</a>` : ""}
-      </div>
-    `;
-  }
-
-  if (which === "steps") {
-    const s = entry.steps ?? 0;
-    const spct = pct(s, 10000);
-    return `
-      <div class="detail-title">👟 Steps</div>
-      <div class="detail-row"><span class="key">Today</span>
-        <input type="number" min="0" inputmode="numeric" id="steps-input" value="${s || ""}" placeholder="0" />
-        <span style="color:rgba(232,237,245,0.5); font-size:13px;">/ 10,000</span></div>
-      <div class="detail-row"><span class="key">Progress</span> <span class="mini-bar steps"><span style="width:${spct}%"></span></span> <span class="val">${spct}%${s >= 10000 ? ' ✓' : ''}</span></div>
-    `;
-  }
-
-  if (which === "nutrients") {
-    const t = macroTotals();
-    const sugarWarn = t.su > 40;
-    function ring(key, label, value, target) {
-      const p = target ? Math.min(100, Math.round((value / target) * 100)) : 0;
-      const denom = target ? `/ ${target}g` : "g";
-      return `
-        <div class="detail-ring" data-key="${key}">
-          <div class="ring-wrap">
-            <svg viewBox="0 0 56 56">
-              <circle class="track" cx="28" cy="28" r="22" />
-              <circle class="prog"  cx="28" cy="28" r="22"
-                      stroke-dasharray="${2 * Math.PI * 22}"
-                      stroke-dashoffset="${2 * Math.PI * 22 * (1 - p/100)}"
-                      transform="rotate(-90 28 28)" />
-            </svg>
-            <div class="ring-center">
-              <div class="num">${value}</div>
-              <div class="denom">${denom}</div>
-            </div>
-          </div>
-          <div class="label">${label}</div>
-        </div>
-      `;
-    }
-    return `
-      <div class="detail-title">🍽️ Macros${sugarWarn ? ' · <span style="color:#e89aba">sugar over goal</span>' : ''}</div>
-      <div class="detail-rings">
-        ${ring("p",  "Protein",   t.p,  125)}
-        ${ring("fi", "Fiber",     t.fi, 35)}
-        ${ring("fa", "Fats",      t.fa, 0)}
-        ${ring("c",  "Net Carbs", t.c,  90)}
-        ${ring("su", "Sugar",     t.su, 40)}
-      </div>
-      <div class="detail-row" style="font-size:12px; color:rgba(232,237,245,0.55); margin-top:8px;">
-        Log meals on <strong style="color:#e8edf5">Tracking</strong>.
-      </div>
-    `;
-  }
-
-  if (which === "routine") {
-    const { done, total } = countDone(entry);
-    const rpct = total > 0 ? Math.round((done / total) * 100) : 0;
-    return `
-      <div class="detail-title">✓ Routine</div>
-      <div class="detail-row"><span class="key">Done</span> <span class="val">${done} of ${total}</span></div>
-      <div class="detail-row"><span class="key">Progress</span> <span class="mini-bar fast"><span style="width:${rpct}%"></span></span> <span class="val">${rpct}%</span></div>
-      <div class="detail-row" style="font-size:12px; color:rgba(232,237,245,0.55); margin-top:8px;">
-        Check items on <strong style="color:#e8edf5">Tracking</strong>.
-      </div>
-    `;
-  }
-  return "";
 }
 
 function renderNutrientRings(t) {
@@ -535,6 +395,103 @@ function renderToday() {
   startTicker();
 }
 
+function renderControlsPanel() {
+  const goalH = entry.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
+  const goalMs = goalH * 3600 * 1000;
+  const w = entry.waterOz ?? 0;
+  const wpct = Math.min(100, Math.round((w / 140) * 100));
+  const s = entry.steps ?? 0;
+  const spct = pct(s, 10000);
+
+  let fastBlock = "";
+  if (entry.fastStartedAt && !entry.fastEndedAt) {
+    const ms = fastDurationMs(entry.fastStartedAt, null);
+    const stage = currentFastStage(ms / 3600000);
+    const fpct = Math.min(100, Math.round((ms / goalMs) * 100));
+    const remainMs = Math.max(0, goalMs - ms);
+    const isComplete = ms >= goalMs;
+    fastBlock = `
+      <div class="ctrl-row fast">
+        <div class="ctrl-icon">🩸</div>
+        <div class="ctrl-body">
+          <div class="ctrl-line">
+            <span class="ctrl-label">Fasting</span>
+            <span class="ctrl-stage">${stage.name}</span>
+          </div>
+          <div class="ctrl-time">${fmtDuration(ms)} <span class="ctrl-sub">${isComplete ? `+${fmtDuration(ms - goalMs)} past goal` : `· ${fmtDuration(remainMs)} remaining`}</span></div>
+          <div class="ctrl-bar"><span style="width:${fpct}%"></span></div>
+          <div class="ctrl-actions">
+            ${fastEditOpen ? `
+              <input type="datetime-local" id="fast-start-input" value="${toLocalDatetimeInput(new Date(entry.fastStartedAt))}" />
+              <button class="primary" id="fast-start-save">Save start</button>
+              <button class="ghost" id="fast-edit-cancel">Cancel</button>
+            ` : `
+              <button id="end-fast">End Fasting</button>
+              <button class="ghost" id="fast-edit">edit start</button>
+            `}
+          </div>
+        </div>
+      </div>
+    `;
+  } else if (entry.fastStartedAt && entry.fastEndedAt) {
+    const ms = fastDurationMs(entry.fastStartedAt, entry.fastEndedAt);
+    const stage = currentFastStage(ms / 3600000);
+    fastBlock = `
+      <div class="ctrl-row fast complete">
+        <div class="ctrl-icon">🩸</div>
+        <div class="ctrl-body">
+          <div class="ctrl-line"><span class="ctrl-label">Fasted</span> <span class="ctrl-stage">${stage.name} ✓</span></div>
+          <div class="ctrl-time">${fmtDuration(ms)}</div>
+        </div>
+      </div>
+    `;
+  } else {
+    fastBlock = `
+      <div class="ctrl-row fast idle">
+        <div class="ctrl-icon">🩸</div>
+        <div class="ctrl-body">
+          <div class="ctrl-line"><span class="ctrl-label">Fasting</span> <span class="ctrl-sub">goal ${goalH}h</span></div>
+          <div class="ctrl-actions">
+            <button class="primary" id="start-fast">Start Fasting</button>
+            <select id="fast-goal-select">
+              ${FAST_GOAL_OPTIONS.map(o => `<option value="${o}" ${o === goalH ? "selected" : ""}>${o}h</option>`).join("")}
+            </select>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    ${fastBlock}
+    <div class="ctrl-row water">
+      <div class="ctrl-icon">💧</div>
+      <div class="ctrl-body">
+        <div class="ctrl-line">
+          <span class="ctrl-label">Water</span>
+          <span class="ctrl-time">${w} <span class="ctrl-sub">/ 140 oz · ${wpct}%${w >= 140 ? ' ✓' : ''}</span></span>
+        </div>
+        <div class="ctrl-bar"><span style="width:${wpct}%"></span></div>
+        <div class="ctrl-actions">
+          <button data-water="8">+8 oz</button>
+          <button data-water="16">+16 oz</button>
+          ${lastWaterDelta > 0 ? `<a class="undo" id="water-undo">undo</a>` : ""}
+        </div>
+      </div>
+    </div>
+    <div class="ctrl-row steps">
+      <div class="ctrl-icon">👟</div>
+      <div class="ctrl-body">
+        <div class="ctrl-line">
+          <span class="ctrl-label">Steps</span>
+          <span class="ctrl-time"><input type="number" min="0" inputmode="numeric" id="steps-input" value="${s || ''}" placeholder="0" /> <span class="ctrl-sub">/ 10,000 · ${spct}%${s >= 10000 ? ' ✓' : ''}</span></span>
+        </div>
+        <div class="ctrl-bar"><span style="width:${spct}%"></span></div>
+      </div>
+    </div>
+  `;
+}
+
 function renderTracking() {
   document.getElementById("title").textContent = "Today's Routine";
   const { done, total } = countDone(entry);
@@ -542,6 +499,12 @@ function renderTracking() {
 
   const root = document.getElementById("app");
   root.innerHTML = "";
+
+  // === Controls panel (fasting + water + steps) ===
+  const controls = document.createElement("section");
+  controls.className = "controls-panel";
+  controls.innerHTML = renderControlsPanel();
+  root.appendChild(controls);
 
   const sec = document.createElement("section");
   sec.className = "ordered";
@@ -585,6 +548,8 @@ function renderTracking() {
   snacksInner.appendChild(renderSnacksBlock());
   snacksWrap.appendChild(snacksInner);
   root.appendChild(snacksWrap);
+
+  startTicker();
 }
 
 document.addEventListener("change", (ev) => {
@@ -599,7 +564,7 @@ document.addEventListener("change", (ev) => {
       entry.fastEndedAt = new Date().toISOString();
     }
     persist();
-    renderToday();
+    rerender();
     return;
   }
   if (ev.target.id === "fast-goal-select") {
@@ -619,19 +584,10 @@ document.addEventListener("click", (ev) => {
     }
     return;
   }
-  // Stat pill clicks — open / close detail panel
-  const pillEl = ev.target.closest('[data-pill]');
-  if (pillEl) {
-    const which = pillEl.dataset.pill;
-    openDetail = (openDetail === which) ? null : which;
-    fastEditOpen = false; // reset edit mode when changing detail
-    renderToday();
-    return;
-  }
   if (ev.target.id === "start-fast") { startFast(); return; }
   if (ev.target.id === "end-fast")   { endFast(); return; }
-  if (ev.target.id === "fast-edit")  { fastEditOpen = true; renderToday(); return; }
-  if (ev.target.id === "fast-edit-cancel") { fastEditOpen = false; renderToday(); return; }
+  if (ev.target.id === "fast-edit")  { fastEditOpen = true; rerender(); return; }
+  if (ev.target.id === "fast-edit-cancel") { fastEditOpen = false; rerender(); return; }
   if (ev.target.id === "fast-start-save") {
     const v = document.getElementById("fast-start-input")?.value;
     if (v) setFastStart(v);
@@ -645,7 +601,7 @@ document.addEventListener("click", (ev) => {
   if (ev.target.id === "water-undo") { undoWater(); return; }
   if (ev.target.id === "snack-toggle") {
     snackFormOpen = !snackFormOpen;
-    renderToday();
+    rerender();
     if (snackFormOpen) {
       const inp = document.getElementById("snack-label");
       if (inp) inp.focus();
@@ -675,21 +631,22 @@ document.addEventListener("click", (ev) => {
     });
     snackFormOpen = false;
     persist();
-    renderToday();
+    rerender();
     return;
   }
   if (ev.target.matches('[data-snack-del]')) {
     const id = ev.target.dataset.snackDel;
     entry.snacks = (entry.snacks ?? []).filter(s => s.id !== id);
     persist();
-    renderToday();
+    rerender();
     return;
   }
 });
 
 const typingTimers = {};
 function refreshMacrosBlock() {
-  // On Today page, re-render the whole hero (score depends on macros).
+  // No-op for Tracking (typing into a macro input shouldn't blow away focus).
+  // On Today page, re-render the whole hero so the score reflects new totals.
   if (view === "main") renderToday();
 }
 document.addEventListener("input", (ev) => {

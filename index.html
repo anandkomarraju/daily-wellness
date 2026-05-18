@@ -150,7 +150,89 @@
       font-weight: 500; letter-spacing: 0.02em; text-align: center; }
     .score-tagline strong { color: #a8e0c4; font-weight: 700; }
 
-    /* Stat pills under the score */
+    /* 5 mini progress rings under the score */
+    .mini-rings { position: relative; z-index: 1; display: grid;
+      grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 8px; }
+    .mini-ring { display: flex; flex-direction: column; align-items: center;
+      padding: 12px 4px 10px; border-radius: 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      backdrop-filter: blur(10px);
+      transition: background 250ms ease, border-color 250ms ease;
+    }
+    .mini-ring.complete { background: rgba(127, 201, 150, 0.10); border-color: rgba(127, 201, 150, 0.28); }
+    .mini-ring.warn { background: rgba(176, 74, 122, 0.12); border-color: rgba(176, 74, 122, 0.32); }
+    .mini-ring .mini-wrap { position: relative; }
+    .mini-ring svg { width: 56px; height: 56px;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25)); }
+    .mini-ring .track { fill: none; stroke: rgba(255,255,255,0.10); }
+    .mini-ring .prog { fill: none; stroke-linecap: round;
+      transition: stroke-dashoffset 500ms cubic-bezier(.4,0,.2,1); }
+    .mini-ring .mini-center { position: absolute; inset: 0; display: flex;
+      align-items: center; justify-content: center; }
+    .mini-ring .mini-icon { font-size: 18px; line-height: 1; }
+    .mini-ring .mini-primary { font-size: 14px; font-weight: 700;
+      color: #fff; font-variant-numeric: tabular-nums; margin-top: 6px;
+      letter-spacing: -0.02em; line-height: 1; }
+    .mini-ring .mini-primary .unit { font-size: 10px; color: rgba(232,237,245,0.5);
+      font-weight: 500; letter-spacing: 0; }
+    .mini-ring .mini-secondary { font-size: 9px; color: rgba(232,237,245,0.5);
+      margin-top: 3px; letter-spacing: 0.06em; text-transform: uppercase;
+      font-weight: 600; text-align: center; line-height: 1.2;
+      max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mini-ring.complete .mini-primary { color: #a8e0c4; }
+    .mini-ring.warn .mini-primary { color: #e89aba; }
+
+    /* === Controls panel on Tracking === */
+    .controls-panel {
+      background: linear-gradient(180deg, #ffffff 0%, #fafaf6 100%);
+      border: 1px solid var(--line); border-radius: 16px;
+      padding: 6px 14px; margin: 8px 0 14px;
+      box-shadow: 0 2px 8px rgba(45,55,65,0.05);
+    }
+    .ctrl-row { display: flex; gap: 12px; align-items: flex-start;
+      padding: 12px 0; border-top: 1px solid var(--line); }
+    .ctrl-row:first-of-type { border-top: 0; }
+    .ctrl-icon { font-size: 22px; line-height: 1; padding-top: 4px; flex: 0 0 auto; }
+    .ctrl-body { flex: 1; min-width: 0; }
+    .ctrl-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .ctrl-label { font-size: 13px; color: var(--muted); letter-spacing: 0.04em;
+      text-transform: uppercase; font-weight: 700; }
+    .ctrl-stage { font-size: 11px; color: #4a9b6a; font-weight: 700;
+      letter-spacing: 0.10em; text-transform: uppercase; }
+    .ctrl-time { font-size: 22px; font-weight: 700; color: var(--fg);
+      font-variant-numeric: tabular-nums; line-height: 1.1;
+      letter-spacing: -0.02em; margin: 4px 0; }
+    .ctrl-row.fast .ctrl-time { color: #2d3d2d; }
+    .ctrl-row.water .ctrl-time { color: #2c4a6a; }
+    .ctrl-row.steps .ctrl-time { color: #6e4f2a; }
+    .ctrl-sub { font-size: 12px; color: var(--muted); font-weight: 500;
+      font-variant-numeric: tabular-nums; }
+    .ctrl-bar { height: 6px; background: rgba(0,0,0,0.06); border-radius: 999px;
+      overflow: hidden; margin: 6px 0 8px; }
+    .ctrl-bar > span { display: block; height: 100%; border-radius: 999px;
+      transition: width 300ms ease; }
+    .ctrl-row.fast .ctrl-bar > span  { background: linear-gradient(90deg, #a8e0c4 0%, #4a9b6a 100%); }
+    .ctrl-row.water .ctrl-bar > span { background: linear-gradient(90deg, #88a8c8 0%, #4a6c8c 100%); }
+    .ctrl-row.steps .ctrl-bar > span { background: linear-gradient(90deg, #e8b878 0%, #b88142 100%); }
+    .ctrl-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px; }
+    .ctrl-actions button { padding: 7px 14px; border-radius: 999px;
+      border: 1px solid var(--line); background: white; cursor: pointer; font: inherit;
+      font-weight: 500; transition: transform 100ms ease; }
+    .ctrl-actions button:active { transform: scale(.97); }
+    .ctrl-actions button.primary { background: linear-gradient(135deg, #7fc996 0%, #4a9b6a 100%);
+      color: white; border: 0; box-shadow: 0 2px 6px rgba(74,155,106,0.3); font-weight: 600; }
+    .ctrl-actions button.ghost { background: transparent; }
+    .ctrl-actions input[type="datetime-local"] { padding: 7px 10px;
+      border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+    .ctrl-actions select { padding: 6px 12px; border: 1px solid var(--line);
+      border-radius: 999px; font: inherit; background: white; }
+    .ctrl-actions a.undo { font-size: 12px; color: var(--muted); text-decoration: underline; cursor: pointer; }
+    .ctrl-row.steps input[type="number"] { width: 90px; padding: 4px 8px;
+      border: 1px solid var(--line); border-radius: 6px; font: inherit;
+      font-weight: 700; font-size: 18px; color: #6e4f2a; font-variant-numeric: tabular-nums; }
+
+    /* Stat pills under the score (legacy, kept harmless) */
     .stat-pills { position: relative; z-index: 1; display: grid;
       grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 6px; }
     .stat-pill { display: flex; flex-direction: column; align-items: center;
