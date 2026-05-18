@@ -256,6 +256,28 @@
       border: 1px solid var(--line); border-radius: 6px; font: inherit;
       font-weight: 700; font-size: 18px; color: #6e4f2a; font-variant-numeric: tabular-nums; }
 
+    /* === Big rings (fasting + steps) on Tracking === */
+    .ctrl-row.ring-row { padding: 14px 0; gap: 16px; align-items: center; }
+    .ctrl-row.ring-row[data-status="met"] .ctrl-label { color: #4a9b6a; }
+    .ctrl-row.ring-row[data-status="unmet"] .ctrl-label { color: #c44040; }
+    .big-ring { position: relative; width: 120px; height: 120px; flex: 0 0 auto;
+      filter: drop-shadow(0 3px 8px rgba(0,0,0,0.08)); }
+    .big-ring svg { width: 100%; height: 100%; }
+    .big-ring-center { position: absolute; inset: 0; display: flex;
+      flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+    .ring-center-emoji { font-size: 28px; line-height: 1; cursor: pointer;
+      transition: transform 100ms ease; user-select: none; }
+    .ring-center-emoji:active { transform: scale(.92); }
+    .ring-center-num { font-size: 18px; font-weight: 700; color: var(--fg);
+      font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1; }
+    .ring-center-num .ring-unit { font-size: 11px; color: var(--muted); font-weight: 500; }
+    .big-ring-center input[type="number"],
+    .big-ring-center input[type="datetime-local"] {
+      width: 84px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px;
+      font: inherit; font-weight: 700; font-size: 14px; text-align: center;
+      font-variant-numeric: tabular-nums; }
+    .big-ring-center input[type="datetime-local"] { font-size: 10px; width: 96px; }
+
     /* Stat pills under the score (legacy, kept harmless) */
     .stat-pills { position: relative; z-index: 1; display: grid;
       grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 6px; }

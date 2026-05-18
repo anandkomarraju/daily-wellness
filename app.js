@@ -23,17 +23,19 @@ const items = ensureItems(storage);
 
 const date = todayKey();
 const existing = storage.getEntry(date);
-const baseExtras = { waterOz: 0, steps: 0, snacks: [], fastStartedAt: null, fastEndedAt: null, fastGoalHours: DEFAULT_FAST_GOAL_HOURS };
+const baseExtras = { waterOz: 0, steps: 0, snacks: [], fastStartedAt: null, fastEndedAt: null, completedFasts: [], fastGoalHours: DEFAULT_FAST_GOAL_HOURS };
 const entry = existing
   ? { ...baseExtras, ...mergeIntoEntry(existing, items) }
   : { ...blankEntry(date, items), ...baseExtras };
 // Ensure snacks is always an array (in case old entries have snacks: null)
 if (!Array.isArray(entry.snacks)) entry.snacks = [];
+if (!Array.isArray(entry.completedFasts)) entry.completedFasts = [];
 
 let lastWaterDelta = 0;
 let snackFormOpen = false;
 let fastEditOpen = false;
 let fastEndEditOpen = false;
+let stepsEditOpen = false;
 let view = "main";
 let tickerHandle = null;
 
@@ -83,31 +85,70 @@ function startFast() {
   rerender();
 }
 function setFastStart(localStr) {
-  // localStr is "YYYY-MM-DDTHH:mm" interpreted as local time.
+  // Edits start of the active fast OR the last completed fast.
   if (!localStr) return;
   const d = new Date(localStr);
   if (isNaN(d.getTime())) return;
-  entry.fastStartedAt = d.toISOString();
+  if (entry.fastStartedAt && !entry.fastEndedAt) {
+    entry.fastStartedAt = d.toISOString();
+  } else if ((entry.completedFasts ?? []).length > 0) {
+    const last = entry.completedFasts[entry.completedFasts.length - 1];
+    if (d.getTime() <= new Date(last.endedAt).getTime()) {
+      last.startedAt = d.toISOString();
+    }
+  }
   fastEditOpen = false;
   persist();
   rerender();
 }
+function archiveCurrentFast() {
+  // Move the (started+ended) fast into completedFasts and clear the current.
+  if (!entry.fastStartedAt || !entry.fastEndedAt) return;
+  if (!Array.isArray(entry.completedFasts)) entry.completedFasts = [];
+  entry.completedFasts.push({
+    startedAt: entry.fastStartedAt,
+    endedAt: entry.fastEndedAt,
+  });
+  entry.fastStartedAt = null;
+  entry.fastEndedAt = null;
+}
 function endFast() {
   if (entry.fastStartedAt && !entry.fastEndedAt) {
     entry.fastEndedAt = new Date().toISOString();
+    archiveCurrentFast();
     persist();
     rerender();
   }
 }
 function setFastEnd(localStr) {
+  // Edits the end of the last completed fast (the only place "end" is editable).
   if (!localStr) return;
   const d = new Date(localStr);
   if (isNaN(d.getTime())) return;
-  if (!entry.fastStartedAt) return;
-  // Don't allow end before start
-  if (d.getTime() < new Date(entry.fastStartedAt).getTime()) return;
-  entry.fastEndedAt = d.toISOString();
+  const list = entry.completedFasts ?? [];
+  if (list.length === 0) return;
+  const last = list[list.length - 1];
+  if (d.getTime() < new Date(last.startedAt).getTime()) return;
+  last.endedAt = d.toISOString();
   fastEndEditOpen = false;
+  persist();
+  rerender();
+}
+function totalFastedHoursToday() {
+  let ms = 0;
+  for (const f of (entry.completedFasts ?? [])) {
+    if (f.startedAt && f.endedAt) {
+      ms += Math.max(0, new Date(f.endedAt).getTime() - new Date(f.startedAt).getTime());
+    }
+  }
+  if (entry.fastStartedAt && !entry.fastEndedAt) {
+    ms += Math.max(0, Date.now() - new Date(entry.fastStartedAt).getTime());
+  }
+  return ms / 3600000;
+}
+function setSteps(n) {
+  entry.steps = Math.max(0, Number(n) || 0);
+  stepsEditOpen = false;
   persist();
   rerender();
 }
@@ -188,11 +229,7 @@ function ringSvg({ pct: p, radius = 56, stroke = 10, trackClass = "track", progC
 function computeScores() {
   // Each metric → 0..1 contribution to overall score
   const goalH = entry.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
-  const goalMs = goalH * 3600 * 1000;
-  const fastMs = entry.fastStartedAt
-    ? fastDurationMs(entry.fastStartedAt, entry.fastEndedAt)
-    : 0;
-  const fastFrac = Math.min(1, fastMs / goalMs);
+  const fastFrac = Math.min(1, totalFastedHoursToday() / goalH);
 
   const w = entry.waterOz ?? 0;
   const waterFrac = Math.min(1, w / 140);
@@ -416,92 +453,129 @@ function renderToday() {
   startTicker();
 }
 
-function renderControlsPanel() {
-  const goalH = entry.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
-  const goalMs = goalH * 3600 * 1000;
-  const w = entry.waterOz ?? 0;
-  const wpct = Math.min(100, Math.round((w / 140) * 100));
-  const s = entry.steps ?? 0;
-  const spct = pct(s, 10000);
+function bigRingSvg(p, status) {
+  const r = 50;
+  const c = 2 * Math.PI * r;
+  const off = c * (1 - Math.max(0, Math.min(1, p / 100)));
+  return `
+    <svg viewBox="0 0 120 120">
+      <circle cx="60" cy="60" r="${r}" fill="none" stroke="#e8e3d8" stroke-width="9" />
+      <circle cx="60" cy="60" r="${r}" fill="none"
+              stroke="${status === 'met' ? '#4a9b6a' : '#d94545'}"
+              stroke-width="9" stroke-linecap="round"
+              stroke-dasharray="${c}" stroke-dashoffset="${off}"
+              transform="rotate(-90 60 60)" />
+    </svg>
+  `;
+}
 
-  let fastBlock = "";
-  if (entry.fastStartedAt && !entry.fastEndedAt) {
-    const ms = fastDurationMs(entry.fastStartedAt, null);
-    const stage = currentFastStage(ms / 3600000);
-    const fpct = Math.min(100, Math.round((ms / goalMs) * 100));
-    const remainMs = Math.max(0, goalMs - ms);
-    const isComplete = ms >= goalMs;
-    fastBlock = `
-      <div class="ctrl-row fast">
-        <div class="ctrl-icon">🩸</div>
-        <div class="ctrl-body">
-          <div class="ctrl-line">
-            <span class="ctrl-label">Fasting</span>
-            <span class="ctrl-stage">${stage.name}</span>
-          </div>
-          <div class="ctrl-time">${fmtDuration(ms)} <span class="ctrl-sub">${isComplete ? `+${fmtDuration(ms - goalMs)} past goal` : `· ${fmtDuration(remainMs)} remaining`}</span></div>
-          <div class="ctrl-bar"><span style="width:${fpct}%"></span></div>
-          <div class="ctrl-actions">
-            ${fastEditOpen ? `
-              <input type="datetime-local" id="fast-start-input" value="${toLocalDatetimeInput(new Date(entry.fastStartedAt))}" />
-              <button class="primary" id="fast-start-save">Save start</button>
-              <button class="ghost" id="fast-edit-cancel">Cancel</button>
-            ` : `
-              <button id="end-fast">End Fasting</button>
-              <button class="ghost" id="fast-edit">edit start</button>
-            `}
-          </div>
-        </div>
-      </div>
+function renderFastingRing() {
+  const goalH = entry.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
+  const totalH = totalFastedHoursToday();
+  const pct = Math.min(100, Math.round((totalH / goalH) * 100));
+  const status = totalH >= goalH ? "met" : "unmet";
+  const isFasting = entry.fastStartedAt && !entry.fastEndedAt;
+  const stage = isFasting ? currentFastStage(totalH) : null;
+  const completedCount = (entry.completedFasts ?? []).length;
+  const lastFast = completedCount > 0 ? entry.completedFasts[completedCount - 1] : null;
+
+  const summaryLine = isFasting
+    ? `Fasting now · ${stage.name}`
+    : (completedCount > 0
+        ? `${completedCount} fast${completedCount === 1 ? '' : 's'} today`
+        : "Not started");
+
+  // Center of ring: emoji (tap to edit start time) + total hours
+  const centerHtml = fastEditOpen
+    ? `<input type="datetime-local" id="fast-start-input" value="${toLocalDatetimeInput(new Date(entry.fastStartedAt || Date.now()))}" />`
+    : `<div class="ring-center-emoji" id="fast-emoji-edit" title="${isFasting ? 'edit start time' : 'tap to start'}">🩸</div>
+       <div class="ring-center-num">${totalH.toFixed(1)}<span class="ring-unit">h</span></div>`;
+
+  let actions = "";
+  if (fastEditOpen) {
+    actions = `
+      <button class="primary" id="fast-start-save">Save start</button>
+      <button class="ghost" id="fast-edit-cancel">Cancel</button>
     `;
-  } else if (entry.fastStartedAt && entry.fastEndedAt) {
-    const ms = fastDurationMs(entry.fastStartedAt, entry.fastEndedAt);
-    const stage = currentFastStage(ms / 3600000);
-    const startStr = new Date(entry.fastStartedAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" });
-    const endStr   = new Date(entry.fastEndedAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" });
-    fastBlock = `
-      <div class="ctrl-row fast complete">
-        <div class="ctrl-icon">🩸</div>
-        <div class="ctrl-body">
-          <div class="ctrl-line"><span class="ctrl-label">Fasted</span> <span class="ctrl-stage">${stage.name} ✓</span></div>
-          <div class="ctrl-time">${fmtDuration(ms)}</div>
-          <div class="ctrl-sub">${startStr} → ${endStr}</div>
-          <div class="ctrl-actions">
-            ${fastEditOpen ? `
-              <input type="datetime-local" id="fast-start-input" value="${toLocalDatetimeInput(new Date(entry.fastStartedAt))}" />
-              <button class="primary" id="fast-start-save">Save start</button>
-              <button class="ghost" id="fast-edit-cancel">Cancel</button>
-            ` : fastEndEditOpen ? `
-              <input type="datetime-local" id="fast-end-input" value="${toLocalDatetimeInput(new Date(entry.fastEndedAt))}" />
-              <button class="primary" id="fast-end-save">Save end</button>
-              <button class="ghost" id="fast-end-cancel">Cancel</button>
-            ` : `
-              <button class="ghost" id="fast-edit">edit start</button>
-              <button class="ghost" id="fast-end-edit">edit end</button>
-            `}
-          </div>
-        </div>
-      </div>
+  } else if (fastEndEditOpen && lastFast) {
+    actions = `
+      <input type="datetime-local" id="fast-end-input" value="${toLocalDatetimeInput(new Date(lastFast.endedAt))}" />
+      <button class="primary" id="fast-end-save">Save end</button>
+      <button class="ghost" id="fast-end-cancel">Cancel</button>
+    `;
+  } else if (isFasting) {
+    actions = `
+      <button class="primary" id="end-fast">End Fasting</button>
+      <button class="ghost" id="fast-edit">edit start</button>
     `;
   } else {
-    fastBlock = `
-      <div class="ctrl-row fast idle">
-        <div class="ctrl-icon">🩸</div>
-        <div class="ctrl-body">
-          <div class="ctrl-line"><span class="ctrl-label">Fasting</span> <span class="ctrl-sub">goal ${goalH}h</span></div>
-          <div class="ctrl-actions">
-            <button class="primary" id="start-fast">Start Fasting</button>
-            <select id="fast-goal-select">
-              ${FAST_GOAL_OPTIONS.map(o => `<option value="${o}" ${o === goalH ? "selected" : ""}>${o}h</option>`).join("")}
-            </select>
-          </div>
-        </div>
-      </div>
+    actions = `
+      <button class="primary" id="start-fast">Start Fasting</button>
+      <select id="fast-goal-select">
+        ${FAST_GOAL_OPTIONS.map(o => `<option value="${o}" ${o === goalH ? "selected" : ""}>${o}h goal</option>`).join("")}
+      </select>
+      ${completedCount > 0 ? `<button class="ghost" id="fast-end-edit">edit last</button>` : ""}
     `;
   }
 
   return `
-    ${fastBlock}
+    <div class="ctrl-row ring-row" data-status="${status}">
+      <div class="big-ring">
+        ${bigRingSvg(pct, status)}
+        <div class="big-ring-center">${centerHtml}</div>
+      </div>
+      <div class="ctrl-body">
+        <div class="ctrl-line">
+          <span class="ctrl-label">Fasting</span>
+          <span class="ctrl-sub">${totalH.toFixed(1)} / ${goalH}h ${status === 'met' ? '✓' : ''}</span>
+        </div>
+        <div class="ctrl-sub">${summaryLine}</div>
+        <div class="ctrl-actions">${actions}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderStepsRing() {
+  const s = entry.steps ?? 0;
+  const goal = 10000;
+  const p = Math.min(100, Math.round((s / goal) * 100));
+  const status = s >= goal ? "met" : "unmet";
+
+  const centerHtml = stepsEditOpen
+    ? `<input type="number" min="0" inputmode="numeric" id="steps-input" value="${s || ''}" placeholder="0" autofocus />`
+    : `<div class="ring-center-emoji" id="steps-emoji-edit" title="tap to edit">👟</div>
+       <div class="ring-center-num">${s >= 1000 ? (s/1000).toFixed(1) + 'k' : s}</div>`;
+
+  const actions = stepsEditOpen
+    ? `<button class="primary" id="steps-save">Save</button>
+       <button class="ghost" id="steps-cancel">Cancel</button>`
+    : "";
+
+  return `
+    <div class="ctrl-row ring-row" data-status="${status}">
+      <div class="big-ring">
+        ${bigRingSvg(p, status)}
+        <div class="big-ring-center">${centerHtml}</div>
+      </div>
+      <div class="ctrl-body">
+        <div class="ctrl-line">
+          <span class="ctrl-label">Steps</span>
+          <span class="ctrl-sub">${s.toLocaleString()} / ${goal.toLocaleString()} ${status === 'met' ? '✓' : ''}</span>
+        </div>
+        <div class="ctrl-sub">${p}% of daily goal</div>
+        ${actions ? `<div class="ctrl-actions">${actions}</div>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function renderControlsPanel() {
+  const w = entry.waterOz ?? 0;
+  const wpct = Math.min(100, Math.round((w / 140) * 100));
+
+  return `
+    ${renderFastingRing()}
     <div class="ctrl-row water">
       <div class="ctrl-icon">💧</div>
       <div class="ctrl-body">
@@ -517,16 +591,7 @@ function renderControlsPanel() {
         </div>
       </div>
     </div>
-    <div class="ctrl-row steps">
-      <div class="ctrl-icon">👟</div>
-      <div class="ctrl-body">
-        <div class="ctrl-line">
-          <span class="ctrl-label">Steps</span>
-          <span class="ctrl-time"><input type="number" min="0" inputmode="numeric" id="steps-input" value="${s || ''}" placeholder="0" /> <span class="ctrl-sub">/ 10,000 · ${spct}%${s >= 10000 ? ' ✓' : ''}</span></span>
-        </div>
-        <div class="ctrl-bar"><span style="width:${spct}%"></span></div>
-      </div>
-    </div>
+    ${renderStepsRing()}
   `;
 }
 
@@ -632,6 +697,22 @@ document.addEventListener("click", (ev) => {
   }
   if (ev.target.id === "start-fast") { startFast(); return; }
   if (ev.target.id === "end-fast")   { endFast(); return; }
+  if (ev.target.id === "fast-emoji-edit") {
+    // Tap emoji on ring: if fasting → edit start; if idle → start a new fast
+    if (entry.fastStartedAt && !entry.fastEndedAt) {
+      fastEditOpen = true; fastEndEditOpen = false; rerender();
+    } else {
+      startFast();
+    }
+    return;
+  }
+  if (ev.target.id === "steps-emoji-edit") { stepsEditOpen = true; rerender(); return; }
+  if (ev.target.id === "steps-save") {
+    const v = document.getElementById("steps-input")?.value;
+    setSteps(v);
+    return;
+  }
+  if (ev.target.id === "steps-cancel") { stepsEditOpen = false; rerender(); return; }
   if (ev.target.id === "fast-edit")  { fastEditOpen = true; fastEndEditOpen = false; rerender(); return; }
   if (ev.target.id === "fast-edit-cancel") { fastEditOpen = false; rerender(); return; }
   if (ev.target.id === "fast-start-save") {
@@ -736,22 +817,6 @@ document.addEventListener("input", (ev) => {
       entry.items[id].macros = { ...(entry.items[id].macros ?? { p: 0, fi: 0, fa: 0, c: 0, su: 0, kcal: 0 }), [key]: val };
       persist();
       refreshMacrosBlock();
-    }, 250);
-  } else if (ev.target.id === "steps-input") {
-    const val = Math.max(0, Number(ev.target.value) || 0);
-    clearTimeout(typingTimers["__steps"]);
-    typingTimers["__steps"] = setTimeout(() => {
-      entry.steps = val;
-      persist();
-      // Refresh just the steps row's value/bar/sub without full re-render
-      const stepsRow = document.getElementById("steps-row");
-      if (stepsRow) {
-        const p = pct(val, 10000);
-        const bar = stepsRow.querySelector(".bar > span");
-        if (bar) bar.style.width = `${p}%`;
-        const sub = stepsRow.querySelector(".sub");
-        if (sub) sub.textContent = `${p}%${val >= 10000 ? " ✓" : ""}`;
-      }
     }, 250);
   }
 });
