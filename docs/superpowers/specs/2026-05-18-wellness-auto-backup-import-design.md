@@ -75,6 +75,8 @@ export function Storage(backend = localStorage, backup = null) { ... }
 
 After each of `saveItems`, `saveEntry`, `saveActiveFast`: `backup?.queue(this.exportAll())`. Failures inside `backup` must never propagate.
 
+Also add a `replaceEntries(entriesObject)` method that writes the whole `wellness:entries` map in one shot. Used by the restore/import write-back path so dates absent from the backup don't linger. This method also fires `backup?.queue(...)`.
+
 ### `app.js` (modified)
 
 ```js
@@ -113,8 +115,10 @@ Both write-back paths re-trigger `backup.queue` naturally; no separate sync step
 3. `null` → alert and stop
 4. Confirm dialog with `savedAt` and entry count
 5. On confirm: `merged = mergeKeepingToday(data, storage.exportAll(), todayKey())`
-6. Write back: `storage.saveItems(merged.items)`; for each date in `merged.entries`, `storage.saveEntry(date, entry)`; `storage.saveActiveFast(merged.activeFast)`
+6. Write back: `storage.saveItems(merged.items)`; `storage.replaceEntries(merged.entries)`; `storage.saveActiveFast(merged.activeFast)`
 7. Re-paint Settings; user navigates back to Today/Timeline to see restored data
+
+> **Note:** dates present locally but absent from the backup are dropped. This is intentional under the today-preserving rule — restore replaces history wholesale; only today's entry and the active fast carry over.
 
 ### Import file
 
@@ -190,6 +194,7 @@ Add to `tests/tests.js` and `tests/test.html`. The `Backup` factory takes inject
 10. `mergeKeepingToday` with active fast in current → preserved
 11. Validation: missing `entries` → throws "File doesn't look like a wellness export"
 12. Validation: `entries` is an array → throws
+13. `storage.replaceEntries({ "2026-05-10": e })` after a prior `saveEntry("2026-05-09", x)` → only the 05-10 entry remains; calling `getEntry("2026-05-09")` returns `null`
 
 ### Manual smoke test (documented, not automated)
 
