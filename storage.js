@@ -1,5 +1,6 @@
 const ITEMS_KEY = "wellness:items";
 const ENTRIES_KEY = "wellness:entries";
+const ACTIVE_FAST_KEY = "wellness:activeFast";
 
 export function Storage(backend = localStorage) {
   function readJSON(key, fallback) {
@@ -20,8 +21,14 @@ export function Storage(backend = localStorage) {
       all[date] = e;
       writeJSON(ENTRIES_KEY, all);
     },
+    getActiveFast() { return readJSON(ACTIVE_FAST_KEY, null); },
+    saveActiveFast(f) {
+      if (f == null) backend.removeItem(ACTIVE_FAST_KEY);
+      else writeJSON(ACTIVE_FAST_KEY, f);
+    },
+    getAllEntries() { return readJSON(ENTRIES_KEY, {}); },
     exportAll() {
-      return { items: readJSON(ITEMS_KEY, null), entries: readJSON(ENTRIES_KEY, {}) };
+      return { items: readJSON(ITEMS_KEY, null), entries: readJSON(ENTRIES_KEY, {}), activeFast: readJSON(ACTIVE_FAST_KEY, null) };
     },
   };
 }

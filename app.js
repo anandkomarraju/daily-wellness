@@ -26,13 +26,44 @@ const items = ensureItems(storage);
 
 const date = todayKey();
 const existing = storage.getEntry(date);
-const baseExtras = { waterOz: 0, steps: 0, snacks: [], fastStartedAt: null, fastEndedAt: null, completedFasts: [], fastGoalHours: DEFAULT_FAST_GOAL_HOURS };
+const baseExtras = { waterOz: 0, steps: 0, snacks: [], completedFasts: [], fastGoalHours: DEFAULT_FAST_GOAL_HOURS };
 const entry = existing
   ? { ...baseExtras, ...mergeIntoEntry(existing, items) }
   : { ...blankEntry(date, items), ...baseExtras };
 // Ensure snacks is always an array (in case old entries have snacks: null)
 if (!Array.isArray(entry.snacks)) entry.snacks = [];
 if (!Array.isArray(entry.completedFasts)) entry.completedFasts = [];
+
+// === ACTIVE FAST migration: was stored per-day, now stored globally ===
+// If today's entry (or any prior loaded entry) still has legacy fastStartedAt set,
+// migrate it to the global active-fast slot. If both per-entry and global exist,
+// global wins (we already migrated).
+let activeFast = storage.getActiveFast();
+if (!activeFast) {
+  // Check today's entry first
+  if (entry.fastStartedAt && !entry.fastEndedAt) {
+    activeFast = { startedAt: entry.fastStartedAt };
+    storage.saveActiveFast(activeFast);
+  } else {
+    // Walk all stored entries; if any has an unfinished fast, lift it.
+    const allEntries = storage.getAllEntries();
+    for (const d of Object.keys(allEntries)) {
+      const en = allEntries[d];
+      if (en.fastStartedAt && !en.fastEndedAt) {
+        activeFast = { startedAt: en.fastStartedAt };
+        storage.saveActiveFast(activeFast);
+        // Clean it off that entry to avoid re-migration
+        delete en.fastStartedAt;
+        delete en.fastEndedAt;
+        storage.saveEntry(d, en);
+        break;
+      }
+    }
+  }
+}
+// Always remove legacy fields from in-memory today's entry
+delete entry.fastStartedAt;
+delete entry.fastEndedAt;
 
 let lastWaterDelta = 0;
 let snackFormOpen = false;
@@ -79,52 +110,69 @@ function rerender() {
   if (view === "tracking") renderTracking();
   else renderToday();
 }
+// Format a Date as YYYY-MM-DD in local time.
+function ymd(d) {
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+
 function startFast() {
-  // Default to now; user can edit in the picker.
-  entry.fastStartedAt = new Date().toISOString();
-  entry.fastEndedAt = null;
+  // Active fast lives globally, NOT on a per-day entry. Default start = now.
+  activeFast = { startedAt: new Date().toISOString() };
+  storage.saveActiveFast(activeFast);
   fastEditOpen = true;
-  persist();
   rerender();
 }
 function setFastStart(localStr) {
-  // Edits start of the active fast OR the last completed fast.
+  // Edits start of the ACTIVE fast (global) OR the last completed fast on today's entry.
   if (!localStr) return;
   const d = new Date(localStr);
   if (isNaN(d.getTime())) return;
-  if (entry.fastStartedAt && !entry.fastEndedAt) {
-    entry.fastStartedAt = d.toISOString();
+  if (activeFast) {
+    activeFast.startedAt = d.toISOString();
+    storage.saveActiveFast(activeFast);
   } else if ((entry.completedFasts ?? []).length > 0) {
     const last = entry.completedFasts[entry.completedFasts.length - 1];
     if (d.getTime() <= new Date(last.endedAt).getTime()) {
       last.startedAt = d.toISOString();
+      persist();
     }
   }
   fastEditOpen = false;
-  persist();
   rerender();
 }
-function archiveCurrentFast() {
-  // Move the (started+ended) fast into completedFasts and clear the current.
-  if (!entry.fastStartedAt || !entry.fastEndedAt) return;
-  if (!Array.isArray(entry.completedFasts)) entry.completedFasts = [];
-  entry.completedFasts.push({
-    startedAt: entry.fastStartedAt,
-    endedAt: entry.fastEndedAt,
-  });
-  entry.fastStartedAt = null;
-  entry.fastEndedAt = null;
-}
 function endFast() {
-  if (entry.fastStartedAt && !entry.fastEndedAt) {
-    entry.fastEndedAt = new Date().toISOString();
-    archiveCurrentFast();
-    persist();
-    rerender();
+  if (!activeFast) return;
+  endFastAt(new Date());
+  rerender();
+}
+function endFastAt(endDate) {
+  if (!activeFast) return;
+  const startedAt = activeFast.startedAt;
+  const endedAt = endDate.toISOString();
+  // The completed fast belongs to the END day.
+  const endDayKey = ymd(endDate);
+  const allEntries = storage.getAllEntries();
+  let endEntry = allEntries[endDayKey];
+  if (!endEntry) {
+    // Create a minimal entry for that day
+    endEntry = blankEntry(endDayKey, items);
+    Object.assign(endEntry, { ...baseExtras });
   }
+  if (!Array.isArray(endEntry.completedFasts)) endEntry.completedFasts = [];
+  endEntry.completedFasts.push({ startedAt, endedAt });
+  endEntry.savedAt = new Date().toISOString();
+  storage.saveEntry(endDayKey, endEntry);
+  // If the end day is today, sync our in-memory entry too
+  if (endDayKey === date) {
+    if (!Array.isArray(entry.completedFasts)) entry.completedFasts = [];
+    entry.completedFasts.push({ startedAt, endedAt });
+  }
+  activeFast = null;
+  storage.saveActiveFast(null);
 }
 function setFastEnd(localStr) {
-  // Edits the end of the last completed fast (the only place "end" is editable).
+  // Edits the end of the last completed fast on TODAY's entry.
   if (!localStr) return;
   const d = new Date(localStr);
   if (isNaN(d.getTime())) return;
@@ -137,17 +185,24 @@ function setFastEnd(localStr) {
   persist();
   rerender();
 }
-function totalFastedHoursToday(e = entry) {
+// Total fasted hours for a given day (including a still-running fast that started on/before that day).
+// For TODAY: counts any still-active fast (using now() as a virtual end).
+// For PAST days: counts only completed fasts whose end-day matches.
+function totalFastedHoursForEntry(e, dateKey) {
   let ms = 0;
   for (const f of (e?.completedFasts ?? [])) {
     if (f.startedAt && f.endedAt) {
       ms += Math.max(0, new Date(f.endedAt).getTime() - new Date(f.startedAt).getTime());
     }
   }
-  if (e?.fastStartedAt && !e?.fastEndedAt) {
-    ms += Math.max(0, Date.now() - new Date(e.fastStartedAt).getTime());
+  // If this is TODAY and a fast is currently active, count its elapsed time.
+  if (dateKey === date && activeFast) {
+    ms += Math.max(0, Date.now() - new Date(activeFast.startedAt).getTime());
   }
   return ms / 3600000;
+}
+function totalFastedHoursToday(e = entry) {
+  return totalFastedHoursForEntry(e, date);
 }
 function setSteps(n) {
   entry.steps = Math.max(0, Number(n) || 0);
@@ -199,7 +254,7 @@ function pct(value, target) {
 function startTicker() {
   if (tickerHandle) return;
   tickerHandle = setInterval(() => {
-    if (entry.fastStartedAt && !entry.fastEndedAt && !fastEditOpen) {
+    if (activeFast && !fastEditOpen) {
       rerender();
     }
   }, 60_000);
@@ -229,12 +284,12 @@ function ringSvg({ pct: p, radius = 56, stroke = 10, trackClass = "track", progC
   `;
 }
 
-function computeScores(e = entry) {
+function computeScores(e = entry, dateKey = date) {
   // Weights (sum to 1.00)
   // Fast 10 · Water 10 · Steps 10 · Nutrients 10 (protein+fiber) ·
   // Recovery 10 · Strength 10 · Other routine items 40
   const goalH = e?.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
-  const fastFrac = Math.min(1, totalFastedHoursToday(e) / goalH);
+  const fastFrac = Math.min(1, totalFastedHoursForEntry(e, dateKey) / goalH);
 
   const w = e?.waterOz ?? 0;
   const waterFrac = Math.min(1, w / 140);
@@ -300,11 +355,9 @@ function paintHeroCard(root) {
   const scores = computeScores();
   const t = macroTotals();
   const goalH = entry.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
-  const isFasting = entry.fastStartedAt && !entry.fastEndedAt;
-  const fastMs = entry.fastStartedAt
-    ? fastDurationMs(entry.fastStartedAt, entry.fastEndedAt)
-    : 0;
-  const stage = entry.fastStartedAt ? currentFastStage(fastMs / 3600000) : null;
+  const isFasting = !!activeFast;
+  const totalH = totalFastedHoursToday();
+  const stage = isFasting ? currentFastStage(totalH) : null;
   const w = entry.waterOz ?? 0;
   const s = entry.steps ?? 0;
   const { done, total } = countDone(entry);
@@ -360,12 +413,10 @@ function paintHeroCard(root) {
     `;
   }
 
-  const fastDisplay = isFasting
-    ? fmtDuration(fastMs).replace(/^0h /, '')
-    : (entry.fastStartedAt ? `${fmtDuration(fastMs).replace(/^0h /, '')} ✓` : "—");
+  const fastDisplay = totalH > 0 ? `${totalH.toFixed(1)}h` : "—";
   const fastSecondary = isFasting
     ? (stage ? stage.name : `goal ${goalH}h`)
-    : (entry.fastStartedAt ? "complete" : `goal ${goalH}h`);
+    : (totalH > 0 ? `${(entry.completedFasts ?? []).length} done` : `goal ${goalH}h`);
 
   const rings = document.createElement("div");
   rings.className = "mini-rings";
@@ -494,7 +545,7 @@ function renderFastingRing() {
   const totalH = totalFastedHoursToday();
   const pct = Math.min(100, Math.round((totalH / goalH) * 100));
   const status = totalH >= goalH ? "met" : "unmet";
-  const isFasting = entry.fastStartedAt && !entry.fastEndedAt;
+  const isFasting = !!activeFast;
   const stage = isFasting ? currentFastStage(totalH) : null;
   const completedCount = (entry.completedFasts ?? []).length;
   const lastFast = completedCount > 0 ? entry.completedFasts[completedCount - 1] : null;
@@ -514,7 +565,7 @@ function renderFastingRing() {
   let actions = "";
   if (fastEditOpen) {
     actions = `
-      <input type="datetime-local" id="fast-start-input" value="${toLocalDatetimeInput(new Date(entry.fastStartedAt || Date.now()))}" />
+      <input type="datetime-local" id="fast-start-input" value="${toLocalDatetimeInput(new Date((activeFast && activeFast.startedAt) || (lastFast && lastFast.startedAt) || Date.now()))}" />
       <button class="primary" id="fast-start-save">Save</button>
       <button class="ghost" id="fast-edit-cancel">Cancel</button>
     `;
@@ -699,8 +750,8 @@ document.addEventListener("change", (ev) => {
       entry.items[id] = { label: it?.label ?? id, checked: false, comment: "" };
     }
     entry.items[id].checked = ev.target.checked;
-    if (id === "breakfast" && ev.target.checked && entry.fastStartedAt && !entry.fastEndedAt) {
-      entry.fastEndedAt = new Date().toISOString();
+    if (id === "breakfast" && ev.target.checked && activeFast) {
+      endFastAt(new Date());
     }
     persist();
     rerender();
@@ -897,5 +948,6 @@ document.getElementById("link-export").addEventListener("click", (ev) => {
 window.__wellness_computeScores = computeScores;
 window.__wellness_macroTotals = macroTotals;
 window.__wellness_totalFastedHoursToday = totalFastedHoursToday;
+window.__wellness_totalFastedHoursForEntry = totalFastedHoursForEntry;
 
 show();

@@ -47,7 +47,7 @@ export function renderHistory(root, storage) {
 
   const compute = window.__wellness_computeScores;
   const macroT = window.__wellness_macroTotals;
-  const totalFasted = window.__wellness_totalFastedHoursToday;
+  const totalFastedForEntry = window.__wellness_totalFastedHoursForEntry;
 
   for (const date of dates) {
     const e = all[date];
@@ -61,9 +61,9 @@ export function renderHistory(root, storage) {
       wrap.appendChild(div);
       continue;
     }
-    const scores = compute(e);
+    const scores = compute(e, date);
     const t = macroT(e);
-    const fastedH = totalFasted(e);
+    const fastedH = totalFastedForEntry ? totalFastedForEntry(e, date) : 0;
     const goalH = e.fastGoalHours ?? 14;
 
     const water = e.waterOz ?? 0;
