@@ -3,6 +3,9 @@ import { ensureItems, ICONS } from "./items.js";
 import { todayKey, blankEntry, mergeIntoEntry, countDone } from "./entry.js";
 import { renderSettings } from "./settings.js";
 import { renderHistory } from "./history.js";
+
+// Expose helpers used by history.js timeline view (so it can compute past-day scores)
+// Set lazily after the helper functions are defined below.
 import { downloadExport } from "./export.js";
 
 // Fasting goal in hours. Persisted on the entry so each day's goal is independent.
@@ -134,15 +137,15 @@ function setFastEnd(localStr) {
   persist();
   rerender();
 }
-function totalFastedHoursToday() {
+function totalFastedHoursToday(e = entry) {
   let ms = 0;
-  for (const f of (entry.completedFasts ?? [])) {
+  for (const f of (e?.completedFasts ?? [])) {
     if (f.startedAt && f.endedAt) {
       ms += Math.max(0, new Date(f.endedAt).getTime() - new Date(f.startedAt).getTime());
     }
   }
-  if (entry.fastStartedAt && !entry.fastEndedAt) {
-    ms += Math.max(0, Date.now() - new Date(entry.fastStartedAt).getTime());
+  if (e?.fastStartedAt && !e?.fastEndedAt) {
+    ms += Math.max(0, Date.now() - new Date(e.fastStartedAt).getTime());
   }
   return ms / 3600000;
 }
@@ -172,11 +175,11 @@ function undoWater() {
   rerender();
 }
 
-function macroTotals() {
+function macroTotals(e = entry) {
   let p = 0, fi = 0, fa = 0, c = 0, su = 0, kcal = 0;
-  for (const it of items.items) {
-    if (!it.macros) continue;
-    const m = entry.items[it.id]?.macros;
+  // Iterate over the entry's own items keys so historical entries (with old item ids) work too.
+  for (const id of Object.keys(e?.items ?? {})) {
+    const m = e.items[id]?.macros;
     if (!m) continue;
     p    += Number(m.p)    || 0;
     fi   += Number(m.fi)   || 0;
@@ -226,34 +229,48 @@ function ringSvg({ pct: p, radius = 56, stroke = 10, trackClass = "track", progC
   `;
 }
 
-function computeScores() {
-  // Each metric → 0..1 contribution to overall score
-  const goalH = entry.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
-  const fastFrac = Math.min(1, totalFastedHoursToday() / goalH);
+function computeScores(e = entry) {
+  // Weights (sum to 1.00)
+  // Fast 10 · Water 10 · Steps 10 · Nutrients 10 (protein+fiber) ·
+  // Recovery 10 · Strength 10 · Other routine items 40
+  const goalH = e?.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
+  const fastFrac = Math.min(1, totalFastedHoursToday(e) / goalH);
 
-  const w = entry.waterOz ?? 0;
+  const w = e?.waterOz ?? 0;
   const waterFrac = Math.min(1, w / 140);
 
-  const s = entry.steps ?? 0;
+  const s = e?.steps ?? 0;
   const stepsFrac = Math.min(1, s / 10000);
 
-  const t = macroTotals();
-  // Nutrient sub-score: avg of P/Fi (under-goal targets), C/Su (over-penalized), kcal (in-window)
+  const t = macroTotals(e);
   const pFrac    = Math.min(1, t.p / 125);
   const fiFrac   = Math.min(1, t.fi / 35);
-  const cFrac    = t.c <= 90 && t.c > 0 ? 1 : (t.c === 0 ? 0 : Math.max(0, 1 - (t.c - 90) / 90));
-  const suFrac   = t.su <= 40 ? Math.min(1, t.su / 40) : Math.max(0, 1 - (t.su - 40) / 40);
-  // Calories: 1 at goal, drops as you go further from 1800 in either direction (10% tolerance band).
-  const kcalFrac = t.kcal === 0 ? 0
-    : (Math.abs(t.kcal - 1800) <= 180 ? 1
-    : Math.max(0, 1 - (Math.abs(t.kcal - 1800) - 180) / 1800));
-  const nutFrac = (pFrac + fiFrac + cFrac + suFrac + kcalFrac) / 5;
+  const nutFrac  = (pFrac + fiFrac) / 2;
 
-  const { done, total } = countDone(entry);
-  const routineFrac = total > 0 ? done / total : 0;
+  const recoveryDone = e?.items?.["recovery_routine"]?.checked ? 1 : 0;
+  const strengthDone = e?.items?.["strength_training"]?.checked ? 1 : 0;
 
-  // Overall = weighted average
-  const overall = Math.round((fastFrac * 0.25 + waterFrac * 0.20 + stepsFrac * 0.15 + nutFrac * 0.20 + routineFrac * 0.20) * 100);
+  // "Other" = entry's own items minus recovery + strength
+  const eItems = e?.items ?? {};
+  const otherIds = Object.keys(eItems).filter(id => id !== "recovery_routine" && id !== "strength_training");
+  const otherTotal = otherIds.length;
+  const otherDone = otherIds.filter(id => eItems[id]?.checked).length;
+  const otherFrac = otherTotal > 0 ? otherDone / otherTotal : 0;
+
+  // Overall = weighted sum
+  const overall = Math.round((
+    fastFrac * 0.10 +
+    waterFrac * 0.10 +
+    stepsFrac * 0.10 +
+    nutFrac * 0.10 +
+    recoveryDone * 0.10 +
+    strengthDone * 0.10 +
+    otherFrac * 0.40
+  ) * 100);
+
+  // Routine sub-score combines recovery + strength + other proportionally to their weights
+  // (10 + 10 + 40 = 60 → renormalize to 0..1)
+  const routineFrac = (recoveryDone * 0.10 + strengthDone * 0.10 + otherFrac * 0.40) / 0.60;
 
   return {
     overall,
@@ -261,6 +278,9 @@ function computeScores() {
     water: Math.round(waterFrac * 100),
     steps: Math.round(stepsFrac * 100),
     nutrients: Math.round(nutFrac * 100),
+    recovery: Math.round(recoveryDone * 100),
+    strength: Math.round(strengthDone * 100),
+    other: Math.round(otherFrac * 100),
     routine: Math.round(routineFrac * 100),
   };
 }
@@ -453,7 +473,8 @@ function renderToday() {
   startTicker();
 }
 
-function bigRingSvg(p, status) {
+function bigRingSvg(p) {
+  // Neutral ring stroke — status is conveyed by the TEXT color inside, not the ring.
   const r = 50;
   const c = 2 * Math.PI * r;
   const off = c * (1 - Math.max(0, Math.min(1, p / 100)));
@@ -461,8 +482,7 @@ function bigRingSvg(p, status) {
     <svg viewBox="0 0 120 120">
       <circle cx="60" cy="60" r="${r}" fill="none" stroke="#e8e3d8" stroke-width="9" />
       <circle cx="60" cy="60" r="${r}" fill="none"
-              stroke="${status === 'met' ? '#4a9b6a' : '#d94545'}"
-              stroke-width="9" stroke-linecap="round"
+              stroke="#8a9b8a" stroke-width="9" stroke-linecap="round"
               stroke-dasharray="${c}" stroke-dashoffset="${off}"
               transform="rotate(-90 60 60)" />
     </svg>
@@ -479,59 +499,56 @@ function renderFastingRing() {
   const completedCount = (entry.completedFasts ?? []).length;
   const lastFast = completedCount > 0 ? entry.completedFasts[completedCount - 1] : null;
 
-  const summaryLine = isFasting
-    ? `Fasting now · ${stage.name}`
+  const subline = isFasting
+    ? `now · ${stage.name}`
     : (completedCount > 0
-        ? `${completedCount} fast${completedCount === 1 ? '' : 's'} today`
-        : "Not started");
+        ? `${completedCount} fast${completedCount === 1 ? '' : 's'} done`
+        : "not started");
 
-  // Center of ring: emoji (tap to edit start time) + total hours
-  const centerHtml = fastEditOpen
-    ? `<input type="datetime-local" id="fast-start-input" value="${toLocalDatetimeInput(new Date(entry.fastStartedAt || Date.now()))}" />`
-    : `<div class="ring-center-emoji" id="fast-emoji-edit" title="${isFasting ? 'edit start time' : 'tap to start'}">🩸</div>
-       <div class="ring-center-num">${totalH.toFixed(1)}<span class="ring-unit">h</span></div>`;
+  // Center: just the number — neutral ring stroke, text colored by status.
+  const centerHtml = `
+    <div class="ring-center-num" data-status="${status}">${totalH.toFixed(1)}<span class="ring-unit">h</span></div>
+    <div class="ring-center-goal">/ ${goalH}h</div>
+  `;
 
   let actions = "";
   if (fastEditOpen) {
     actions = `
-      <button class="primary" id="fast-start-save">Save start</button>
+      <input type="datetime-local" id="fast-start-input" value="${toLocalDatetimeInput(new Date(entry.fastStartedAt || Date.now()))}" />
+      <button class="primary" id="fast-start-save">Save</button>
       <button class="ghost" id="fast-edit-cancel">Cancel</button>
     `;
   } else if (fastEndEditOpen && lastFast) {
     actions = `
       <input type="datetime-local" id="fast-end-input" value="${toLocalDatetimeInput(new Date(lastFast.endedAt))}" />
-      <button class="primary" id="fast-end-save">Save end</button>
+      <button class="primary" id="fast-end-save">Save</button>
       <button class="ghost" id="fast-end-cancel">Cancel</button>
     `;
   } else if (isFasting) {
     actions = `
-      <button class="primary" id="end-fast">End Fasting</button>
-      <button class="ghost" id="fast-edit">edit start</button>
+      <button class="primary" id="end-fast">End</button>
+      <button class="ghost small" id="fast-edit">edit start</button>
     `;
   } else {
     actions = `
-      <button class="primary" id="start-fast">Start Fasting</button>
-      <select id="fast-goal-select">
-        ${FAST_GOAL_OPTIONS.map(o => `<option value="${o}" ${o === goalH ? "selected" : ""}>${o}h goal</option>`).join("")}
+      <button class="primary" id="start-fast">Start</button>
+      <select id="fast-goal-select" class="small">
+        ${FAST_GOAL_OPTIONS.map(o => `<option value="${o}" ${o === goalH ? "selected" : ""}>${o}h</option>`).join("")}
       </select>
-      ${completedCount > 0 ? `<button class="ghost" id="fast-end-edit">edit last</button>` : ""}
+      ${completedCount > 0 ? `<button class="ghost small" id="fast-end-edit">edit last</button>` : ""}
     `;
   }
 
   return `
-    <div class="ctrl-row ring-row" data-status="${status}">
+    <div class="big-ring-card" data-status="${status}">
+      <div class="big-ring-emoji">🩸</div>
       <div class="big-ring">
-        ${bigRingSvg(pct, status)}
+        ${bigRingSvg(pct)}
         <div class="big-ring-center">${centerHtml}</div>
       </div>
-      <div class="ctrl-body">
-        <div class="ctrl-line">
-          <span class="ctrl-label">Fasting</span>
-          <span class="ctrl-sub">${totalH.toFixed(1)} / ${goalH}h ${status === 'met' ? '✓' : ''}</span>
-        </div>
-        <div class="ctrl-sub">${summaryLine}</div>
-        <div class="ctrl-actions">${actions}</div>
-      </div>
+      <div class="big-ring-label">Fasting</div>
+      <div class="big-ring-sub">${subline}</div>
+      <div class="big-ring-actions">${actions}</div>
     </div>
   `;
 }
@@ -541,41 +558,47 @@ function renderStepsRing() {
   const goal = 10000;
   const p = Math.min(100, Math.round((s / goal) * 100));
   const status = s >= goal ? "met" : "unmet";
+  const display = s >= 1000 ? `${(s/1000).toFixed(1)}` : `${s}`;
+  const unit = s >= 1000 ? "k" : "";
 
   const centerHtml = stepsEditOpen
     ? `<input type="number" min="0" inputmode="numeric" id="steps-input" value="${s || ''}" placeholder="0" autofocus />`
-    : `<div class="ring-center-emoji" id="steps-emoji-edit" title="tap to edit">👟</div>
-       <div class="ring-center-num">${s >= 1000 ? (s/1000).toFixed(1) + 'k' : s}</div>`;
+    : `<div class="ring-center-num" data-status="${status}">${display}<span class="ring-unit">${unit}</span></div>
+       <div class="ring-center-goal">/ 10k</div>`;
 
   const actions = stepsEditOpen
     ? `<button class="primary" id="steps-save">Save</button>
        <button class="ghost" id="steps-cancel">Cancel</button>`
-    : "";
+    : `<button class="ghost small" id="steps-emoji-edit">edit</button>`;
 
   return `
-    <div class="ctrl-row ring-row" data-status="${status}">
+    <div class="big-ring-card" data-status="${status}">
+      <div class="big-ring-emoji">👟</div>
       <div class="big-ring">
-        ${bigRingSvg(p, status)}
+        ${bigRingSvg(p)}
         <div class="big-ring-center">${centerHtml}</div>
       </div>
-      <div class="ctrl-body">
-        <div class="ctrl-line">
-          <span class="ctrl-label">Steps</span>
-          <span class="ctrl-sub">${s.toLocaleString()} / ${goal.toLocaleString()} ${status === 'met' ? '✓' : ''}</span>
-        </div>
-        <div class="ctrl-sub">${p}% of daily goal</div>
-        ${actions ? `<div class="ctrl-actions">${actions}</div>` : ""}
-      </div>
+      <div class="big-ring-label">Steps</div>
+      <div class="big-ring-sub">${p}% of goal</div>
+      <div class="big-ring-actions">${actions}</div>
     </div>
   `;
 }
 
 function renderControlsPanel() {
+  // Two big rings side-by-side at the top: Fasting + Steps
+  return `
+    <div class="rings-pair">
+      ${renderFastingRing()}
+      ${renderStepsRing()}
+    </div>
+  `;
+}
+
+function renderWaterPanel() {
   const w = entry.waterOz ?? 0;
   const wpct = Math.min(100, Math.round((w / 140) * 100));
-
   return `
-    ${renderFastingRing()}
     <div class="ctrl-row water">
       <div class="ctrl-icon">💧</div>
       <div class="ctrl-body">
@@ -591,7 +614,6 @@ function renderControlsPanel() {
         </div>
       </div>
     </div>
-    ${renderStepsRing()}
   `;
 }
 
@@ -603,18 +625,24 @@ function renderTracking() {
   const root = document.getElementById("app");
   root.innerHTML = "";
 
-  // === Controls panel (fasting + water + steps) ===
+  // === Top: Fasting + Steps rings side-by-side ===
   const controls = document.createElement("section");
   controls.className = "controls-panel";
   controls.innerHTML = renderControlsPanel();
   root.appendChild(controls);
 
-  // Nutrient rings — sum of all macros from meals today (above the routine)
+  // Nutrient rings — sum of all macros from meals today
   const nutWrap = document.createElement("section");
   nutWrap.className = "nutrients-block";
   nutWrap.id = "macros-block";
   nutWrap.innerHTML = renderNutrientRings(macroTotals());
   root.appendChild(nutWrap);
+
+  // Water panel
+  const waterWrap = document.createElement("section");
+  waterWrap.className = "controls-panel";
+  waterWrap.innerHTML = renderWaterPanel();
+  root.appendChild(waterWrap);
 
   const sec = document.createElement("section");
   sec.className = "ordered";
@@ -697,15 +725,6 @@ document.addEventListener("click", (ev) => {
   }
   if (ev.target.id === "start-fast") { startFast(); return; }
   if (ev.target.id === "end-fast")   { endFast(); return; }
-  if (ev.target.id === "fast-emoji-edit") {
-    // Tap emoji on ring: if fasting → edit start; if idle → start a new fast
-    if (entry.fastStartedAt && !entry.fastEndedAt) {
-      fastEditOpen = true; fastEndEditOpen = false; rerender();
-    } else {
-      startFast();
-    }
-    return;
-  }
   if (ev.target.id === "steps-emoji-edit") { stepsEditOpen = true; rerender(); return; }
   if (ev.target.id === "steps-save") {
     const v = document.getElementById("steps-input")?.value;
@@ -873,5 +892,10 @@ document.getElementById("link-export").addEventListener("click", (ev) => {
   ev.preventDefault();
   downloadExport(storage);
 });
+
+// Expose helpers for the Timeline page (history.js)
+window.__wellness_computeScores = computeScores;
+window.__wellness_macroTotals = macroTotals;
+window.__wellness_totalFastedHoursToday = totalFastedHoursToday;
 
 show();
