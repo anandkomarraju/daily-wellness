@@ -15,12 +15,12 @@ function ringSvg(p) {
   `;
 }
 
-function ringMini(label, value, status) {
+function ringMini(label, displayValue, progress, status) {
   return `
     <div class="tl-ring" data-status="${status}">
       <div class="tl-ring-wrap">
-        ${ringSvg(value)}
-        <div class="tl-ring-num" data-status="${status}">${value}</div>
+        ${ringSvg(progress)}
+        <div class="tl-ring-num" data-status="${status}">${displayValue}</div>
       </div>
       <div class="tl-ring-label">${label}</div>
     </div>
@@ -72,14 +72,20 @@ export function renderHistory(root, storage) {
 
     const div = document.createElement("div");
     div.className = "tl-day";
+    const fastDisp = `${fastedH.toFixed(1)}h`;
+    const waterDisp = `${water}oz`;
+    const nutDisp = `${scores.nutrients}%`;
+    const recoveryDisp = `${recoveryDone}%`;
+    const overallStatus = scores.overall >= 75 ? "met" : scores.overall >= 50 ? "ok" : "unmet";
+
     div.innerHTML = `
       <div class="tl-date">${fmtDateHeader(date)}</div>
       <div class="tl-rings">
-        ${ringMini("Score",    scores.overall,        scores.overall >= 75 ? "met" : scores.overall >= 50 ? "ok" : "unmet")}
-        ${ringMini("Fast",     scores.fast,           fastedH >= goalH ? "met" : "unmet")}
-        ${ringMini("Water",    scores.water,          water >= 140 ? "met" : "unmet")}
-        ${ringMini("Nutrients",scores.nutrients,      (t.p >= 125 && t.fi >= 35) ? "met" : "unmet")}
-        ${ringMini("Recovery", recoveryDone,          recoveryDone === 100 ? "met" : "unmet")}
+        ${ringMini("Score",     scores.overall,    scores.overall, overallStatus)}
+        ${ringMini("Fast",      fastDisp,          scores.fast,    fastedH >= goalH ? "met" : "unmet")}
+        ${ringMini("Water",     waterDisp,         scores.water,   water >= 140 ? "met" : "unmet")}
+        ${ringMini("Nutrients", nutDisp,           scores.nutrients, (t.p >= 125 && t.fi >= 35) ? "met" : "unmet")}
+        ${ringMini("Recovery",  recoveryDisp,      recoveryDone,   recoveryDone === 100 ? "met" : "unmet")}
       </div>
     `;
     wrap.appendChild(div);
