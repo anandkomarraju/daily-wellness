@@ -441,7 +441,7 @@
       margin-bottom: 14px; }
     .nutrients-title { color: #4a4a4a; font-size: 12px; letter-spacing: 0.12em;
       text-transform: uppercase; margin-bottom: 14px; font-weight: 700; text-align: center; }
-    .nutrient-rings { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+    .nutrient-rings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 8px; }
     .nutrient-ring { display: flex; flex-direction: column; align-items: center; gap: 6px; }
     .nutrient-ring svg { width: 60px; height: 60px;
       filter: drop-shadow(0 2px 4px rgba(0,0,0,0.08)); }
@@ -453,11 +453,13 @@
     .nutrient-ring[data-key="fa"] .prog { stroke: url(#grad-fats); }
     .nutrient-ring[data-key="c"]  .prog { stroke: url(#grad-carbs); }
     .nutrient-ring[data-key="su"] .prog { stroke: url(#grad-sugar); }
+    .nutrient-ring[data-key="kcal"] .prog { stroke: url(#grad-score); }
     .nutrient-ring[data-key="p"]  .label { color: #b85a4a; }
     .nutrient-ring[data-key="fi"] .label { color: #5a7a5a; }
     .nutrient-ring[data-key="fa"] .label { color: #b88142; }
     .nutrient-ring[data-key="c"]  .label { color: #4a6c8c; }
     .nutrient-ring[data-key="su"] .label { color: #b04a7a; }
+    .nutrient-ring[data-key="kcal"] .label { color: #4a9b6a; }
     .nutrient-ring .label { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
     .nutrient-ring .ring-wrap { position: relative; }
     .nutrient-ring .ring-center { position: absolute; inset: 0; display: flex;

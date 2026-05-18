@@ -119,18 +119,19 @@ function undoWater() {
 }
 
 function macroTotals() {
-  let p = 0, fi = 0, fa = 0, c = 0, su = 0;
+  let p = 0, fi = 0, fa = 0, c = 0, su = 0, kcal = 0;
   for (const it of items.items) {
     if (!it.macros) continue;
     const m = entry.items[it.id]?.macros;
     if (!m) continue;
-    p  += Number(m.p)  || 0;
-    fi += Number(m.fi) || 0;
-    fa += Number(m.fa) || 0;
-    c  += Number(m.c)  || 0;
-    su += Number(m.su) || 0;
+    p    += Number(m.p)    || 0;
+    fi   += Number(m.fi)   || 0;
+    fa   += Number(m.fa)   || 0;
+    c    += Number(m.c)    || 0;
+    su   += Number(m.su)   || 0;
+    kcal += Number(m.kcal) || 0;
   }
-  return { p, fi, fa, c, su };
+  return { p, fi, fa, c, su, kcal };
 }
 
 function pct(value, target) {
@@ -187,12 +188,16 @@ function computeScores() {
   const stepsFrac = Math.min(1, s / 10000);
 
   const t = macroTotals();
-  // Nutrient sub-score: avg of P/Fi/C-under-goal (3 metrics that have explicit targets)
-  const pFrac  = Math.min(1, t.p / 125);
-  const fiFrac = Math.min(1, t.fi / 35);
-  const cFrac  = t.c <= 90 && t.c > 0 ? 1 : (t.c === 0 ? 0 : Math.max(0, 1 - (t.c - 90) / 90));
-  const suFrac = t.su <= 40 ? Math.min(1, t.su / 40) : Math.max(0, 1 - (t.su - 40) / 40);
-  const nutFrac = (pFrac + fiFrac + cFrac + suFrac) / 4;
+  // Nutrient sub-score: avg of P/Fi (under-goal targets), C/Su (over-penalized), kcal (in-window)
+  const pFrac    = Math.min(1, t.p / 125);
+  const fiFrac   = Math.min(1, t.fi / 35);
+  const cFrac    = t.c <= 90 && t.c > 0 ? 1 : (t.c === 0 ? 0 : Math.max(0, 1 - (t.c - 90) / 90));
+  const suFrac   = t.su <= 40 ? Math.min(1, t.su / 40) : Math.max(0, 1 - (t.su - 40) / 40);
+  // Calories: 1 at goal, drops as you go further from 1800 in either direction (10% tolerance band).
+  const kcalFrac = t.kcal === 0 ? 0
+    : (Math.abs(t.kcal - 1800) <= 180 ? 1
+    : Math.max(0, 1 - (Math.abs(t.kcal - 1800) - 180) / 1800));
+  const nutFrac = (pFrac + fiFrac + cFrac + suFrac + kcalFrac) / 5;
 
   const { done, total } = countDone(entry);
   const routineFrac = total > 0 ? done / total : 0;
@@ -298,7 +303,7 @@ function paintHeroCard(root) {
     ${miniRing("fast",      "🩸",  fastDisplay,                                    fastSecondary,                  scores.fast,      "grad-score")}
     ${miniRing("water",     "💧",  `${w}<span class='unit'> oz</span>`,            `of 140`,                       scores.water,     "grad-carbs")}
     ${miniRing("steps",     "👟",  s >= 1000 ? `${(s/1000).toFixed(1)}<span class='unit'>k</span>` : `${s}`, `of 10k`,       scores.steps,     "grad-fats")}
-    ${miniRing("nutrients", "🍽️", `${scores.nutrients}<span class='unit'>%</span>`, sugarWarn ? "sugar over" : `P ${t.p} · C ${t.c}`,   scores.nutrients, "grad-fiber", sugarWarn)}
+    ${miniRing("nutrients", "🍽️", `${t.kcal}<span class='unit'> cal</span>`,        sugarWarn ? "sugar over" : `of 1800`,            scores.nutrients, "grad-fiber", sugarWarn)}
     ${miniRing("routine",   "✓",   `${done}<span class='unit'>/${total}</span>`,    `done`,                         scores.routine,   "grad-protein")}
   `;
   hero.appendChild(rings);
@@ -307,9 +312,9 @@ function paintHeroCard(root) {
 }
 
 function renderNutrientRings(t) {
-  function ring(key, label, value, target) {
+  function ring(key, label, value, target, unit = "g") {
     const p = target ? Math.min(100, Math.round((value / target) * 100)) : 0;
-    const denom = target ? `/ ${target}g` : "g";
+    const denom = target ? `/ ${target}${unit}` : unit;
     return `
       <div class="nutrient-ring" data-key="${key}">
         <div class="ring-wrap">
@@ -329,16 +334,15 @@ function renderNutrientRings(t) {
       </div>
     `;
   }
-  // Net carbs = total carbs - fiber, but here `c` is already user-entered net carbs
-  // (we renamed the input label below). Goal 90g.
   return `
     <div class="nutrients-title">Today's Nutrients</div>
     <div class="nutrient-rings">
-      ${ring("p",  "Protein",   t.p,  125)}
-      ${ring("fi", "Fiber",     t.fi, 35)}
-      ${ring("fa", "Fats",      t.fa, 0)}
-      ${ring("c",  "Net Carbs", t.c,  90)}
-      ${ring("su", "Sugar",     t.su, 40)}
+      ${ring("kcal","Calories", t.kcal, 1800, "")}
+      ${ring("p",   "Protein",  t.p,    125)}
+      ${ring("fi",  "Fiber",    t.fi,   35)}
+      ${ring("fa",  "Fats",     t.fa,   0)}
+      ${ring("c",   "Net Carbs", t.c,   90)}
+      ${ring("su",  "Sugar",    t.su,   40)}
     </div>
   `;
 }
@@ -358,6 +362,7 @@ function renderSnacksBlock() {
     form.className = "snack-form";
     form.innerHTML = `
       <input type="text" id="snack-label" placeholder="what I ate" />
+      <span class="mac-input">Cal <input type="number" min="0" inputmode="numeric" id="snack-kcal" /></span>
       <span class="mac-input">P <input type="number" min="0" inputmode="numeric" id="snack-p" /></span>
       <span class="mac-input">Fi <input type="number" min="0" inputmode="numeric" id="snack-fi" /></span>
       <span class="mac-input">Fa <input type="number" min="0" inputmode="numeric" id="snack-fa" /></span>
@@ -375,7 +380,7 @@ function renderSnacksBlock() {
     const m = sn.macros ?? {};
     chip.innerHTML = `
       <span>${escapeAttr(sn.label || "(unnamed)")}</span>
-      <span class="chip-mac">P ${Number(m.p)||0} Fi ${Number(m.fi)||0} Fa ${Number(m.fa)||0} NetC ${Number(m.c)||0}${(Number(m.su)||0) > 15 ? ` <span class="sugar-flag">Su ${Number(m.su)||0}⚠</span>` : ` Su ${Number(m.su)||0}`}</span>
+      <span class="chip-mac">${Number(m.kcal)||0} kcal · P ${Number(m.p)||0} Fi ${Number(m.fi)||0} Fa ${Number(m.fa)||0} NetC ${Number(m.c)||0}${(Number(m.su)||0) > 15 ? ` <span class="sugar-flag">Su ${Number(m.su)||0}⚠</span>` : ` Su ${Number(m.su)||0}`}</span>
       <button data-snack-del="${sn.id}">✕</button>
     `;
     chipWrap.appendChild(chip);
@@ -515,7 +520,7 @@ function renderTracking() {
     row.className = "row";
     row.dataset.id = it.id;
     row.dataset.checked = String(cell.checked);
-    const m = cell.macros ?? { p: "", fi: "", fa: "", c: "", su: "" };
+    const m = cell.macros ?? { p: "", fi: "", fa: "", c: "", su: "", kcal: "" };
     const glyph = ICONS[it.id] ?? "·";
     row.innerHTML = `
       <input type="checkbox" ${cell.checked ? "checked" : ""} />
@@ -527,6 +532,7 @@ function renderTracking() {
         ${(!cell.checked && cell.comment) ? `<textarea>${escapeAttr(cell.comment)}</textarea>` : ""}
         ${it.macros ? `
           <div class="macros">
+            <label>Cal <input type="number" min="0" inputmode="numeric" data-mac="kcal" value="${m.kcal ?? ""}"></label>
             <label>P <input type="number" min="0" inputmode="numeric" data-mac="p"  value="${m.p ?? ""}"></label>
             <label>Fi <input type="number" min="0" inputmode="numeric" data-mac="fi" value="${m.fi ?? ""}"></label>
             <label>Fa <input type="number" min="0" inputmode="numeric" data-mac="fa" value="${m.fa ?? ""}"></label>
@@ -621,6 +627,7 @@ document.addEventListener("click", (ev) => {
       fa: Number(document.getElementById("snack-fa")?.value) || 0,
       c:  Number(document.getElementById("snack-c")?.value)  || 0,
       su: Number(document.getElementById("snack-su")?.value) || 0,
+      kcal: Number(document.getElementById("snack-kcal")?.value) || 0,
     };
     if (!Array.isArray(entry.snacks)) entry.snacks = [];
     entry.snacks.push({
@@ -674,7 +681,7 @@ document.addEventListener("input", (ev) => {
         const it = items.items.find(x => x.id === id);
         entry.items[id] = { label: it?.label ?? id, checked: false, comment: "" };
       }
-      entry.items[id].macros = { ...(entry.items[id].macros ?? { p: 0, fi: 0, fa: 0, c: 0, su: 0 }), [key]: val };
+      entry.items[id].macros = { ...(entry.items[id].macros ?? { p: 0, fi: 0, fa: 0, c: 0, su: 0, kcal: 0 }), [key]: val };
       persist();
       refreshMacrosBlock();
     }, 250);
