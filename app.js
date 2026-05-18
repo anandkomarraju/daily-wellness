@@ -340,7 +340,7 @@ function renderNutrientRings(t) {
       ${ring("kcal","Calories", t.kcal, 1800, "")}
       ${ring("p",   "Protein",  t.p,    125)}
       ${ring("fi",  "Fiber",    t.fi,   35)}
-      ${ring("fa",  "Fats",     t.fa,   0)}
+      ${ring("fa",  "Fats",     t.fa,   75)}
       ${ring("c",   "Net Carbs", t.c,   90)}
       ${ring("su",  "Sugar",    t.su,   40)}
     </div>
@@ -511,6 +511,13 @@ function renderTracking() {
   controls.innerHTML = renderControlsPanel();
   root.appendChild(controls);
 
+  // Nutrient rings — sum of all macros from meals today (above the routine)
+  const nutWrap = document.createElement("section");
+  nutWrap.className = "nutrients-block";
+  nutWrap.id = "macros-block";
+  nutWrap.innerHTML = renderNutrientRings(macroTotals());
+  root.appendChild(nutWrap);
+
   const sec = document.createElement("section");
   sec.className = "ordered";
   const flat = [...items.items].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -545,13 +552,6 @@ function renderTracking() {
     sec.appendChild(row);
   });
   root.appendChild(sec);
-
-  // Nutrient rings — sum of all macros from meals today
-  const nutWrap = document.createElement("section");
-  nutWrap.className = "nutrients-block";
-  nutWrap.id = "macros-block";
-  nutWrap.innerHTML = renderNutrientRings(macroTotals());
-  root.appendChild(nutWrap);
 
   // Snacks block at the bottom
   const snacksWrap = document.createElement("section");
