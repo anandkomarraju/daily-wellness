@@ -627,7 +627,7 @@ function renderWaterPanel() {
 }
 
 function renderTracking() {
-  document.getElementById("title").textContent = "Today's Routine";
+  document.getElementById("title").textContent = "Log";
   const { done, total } = countDone(entry);
   document.getElementById("stat").textContent = `${done} of ${total} done`;
 
@@ -848,7 +848,7 @@ function show() {
       persist();
     }, backup);
   } else if (view === "timeline") {
-    document.getElementById("title").textContent = "Timeline";
+    document.getElementById("title").textContent = "History";
     document.getElementById("stat").textContent = "";
     renderHistory(root, storage);
   } else if (view === "tracking") {
