@@ -2,7 +2,7 @@ import { Storage } from "../storage.js";
 import { defaultItems, ensureItems, nextOrder } from "../items.js";
 import { todayKey, blankEntry, countDone, mergeIntoEntry, snapshotItems } from "../entry.js";
 import { computeDateWindow, classifyCell } from "../timeline.js";
-import { mergeKeepingToday } from "../backup.js";
+import { Backup, mergeKeepingToday } from "../backup.js";
 
 const results = [];
 function it(name, fn) {
@@ -16,6 +16,68 @@ function eq(a, b, msg) {
 
 // Reset storage between tests
 function fresh() { localStorage.clear(); return Storage(localStorage); }
+
+// --- Fake IndexedDB for backup tests ---
+function makeFakeIdb() {
+  let stored = new Map(); // id -> record
+  let openShouldFail = false;
+  const db = {
+    transaction(_name, _mode) {
+      return {
+        objectStore() {
+          return {
+            put(record) {
+              stored.set(record.id, record);
+              return { onsuccess: null, onerror: null };
+            },
+            get(id) {
+              const r = stored.get(id);
+              const req = { result: r, onsuccess: null, onerror: null };
+              queueMicrotask(() => req.onsuccess && req.onsuccess({ target: req }));
+              return req;
+            },
+          };
+        },
+        oncomplete: null,
+        onerror: null,
+      };
+    },
+    close() {},
+  };
+  return {
+    open() {
+      const req = { onsuccess: null, onerror: null, onupgradeneeded: null, result: db };
+      queueMicrotask(() => {
+        if (openShouldFail) { req.onerror && req.onerror({ target: { error: new Error("open failed") } }); return; }
+        req.onupgradeneeded && req.onupgradeneeded({ target: req });
+        req.onsuccess && req.onsuccess({ target: req });
+      });
+      return req;
+    },
+    _stored: stored,
+    _failOpen() { openShouldFail = true; },
+  };
+}
+
+// --- Fake clock for debounce tests ---
+function makeFakeClock() {
+  let now = 0;
+  const timers = []; // {id, dueAt, fn}
+  let nextId = 1;
+  return {
+    now: () => now,
+    setTimeout(fn, ms) { const id = nextId++; timers.push({ id, dueAt: now + ms, fn }); return id; },
+    clearTimeout(id) { const i = timers.findIndex(t => t.id === id); if (i >= 0) timers.splice(i, 1); },
+    advance(ms) {
+      now += ms;
+      const due = timers.filter(t => t.dueAt <= now).sort((a, b) => a.dueAt - b.dueAt);
+      due.forEach(t => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); t.fn(); });
+    },
+    pending: () => timers.length,
+  };
+}
+
+async function flushMicrotasks() { await Promise.resolve(); await Promise.resolve(); }
 
 it("getItems returns null when nothing saved", () => {
   const s = fresh();
@@ -257,6 +319,57 @@ it("mergeKeepingToday preserves current activeFast", () => {
   const current = { items: null, entries: {}, activeFast: { startMs: 999 } };
   const out = mergeKeepingToday(incoming, current, "2026-05-18");
   eq(out.activeFast, current.activeFast);
+});
+
+it("Backup.queue writes once after 2s of quiet", async () => {
+  const idb = makeFakeIdb();
+  const clock = makeFakeClock();
+  const b = Backup({ idb, now: clock.now, setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout });
+  await flushMicrotasks(); // let openDB settle
+  b.queue({ items: null, entries: {}, activeFast: null });
+  eq(idb._stored.size, 0, "no write before debounce elapses");
+  clock.advance(1999);
+  eq(idb._stored.size, 0, "still no write at 1999ms");
+  clock.advance(1);
+  eq(idb._stored.size, 1, "write at 2000ms");
+  eq(idb._stored.get("latest").data.entries, {});
+});
+
+it("Backup.queue coalesces rapid calls into one write with the last snapshot", async () => {
+  const idb = makeFakeIdb();
+  const clock = makeFakeClock();
+  const b = Backup({ idb, now: clock.now, setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout });
+  await flushMicrotasks();
+  b.queue({ items: null, entries: { a: 1 }, activeFast: null });
+  clock.advance(500);
+  b.queue({ items: null, entries: { a: 2 }, activeFast: null });
+  clock.advance(500);
+  b.queue({ items: null, entries: { a: 3 }, activeFast: null });
+  clock.advance(2000);
+  eq(idb._stored.size, 1, "single coalesced write");
+  eq(idb._stored.get("latest").data.entries.a, 3, "kept the last snapshot");
+});
+
+it("Backup.flush writes immediately and cancels timer", async () => {
+  const idb = makeFakeIdb();
+  const clock = makeFakeClock();
+  const b = Backup({ idb, now: clock.now, setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout });
+  await flushMicrotasks();
+  b.queue({ items: null, entries: { a: 1 }, activeFast: null });
+  b.flush();
+  eq(idb._stored.size, 1, "wrote immediately");
+  eq(clock.pending(), 0, "timer cleared");
+});
+
+it("Backup.queue is a no-op when openDB fails", async () => {
+  const idb = makeFakeIdb();
+  idb._failOpen();
+  const clock = makeFakeClock();
+  const b = Backup({ idb, now: clock.now, setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout });
+  await flushMicrotasks();
+  b.queue({ items: null, entries: {}, activeFast: null });
+  clock.advance(5000);
+  eq(idb._stored.size, 0);
 });
 
 // Render
