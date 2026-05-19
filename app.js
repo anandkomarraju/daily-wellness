@@ -1,4 +1,5 @@
 import { Storage } from "./storage.js";
+import { Backup } from "./backup.js";
 import { ensureItems, ICONS } from "./items.js";
 import { todayKey, blankEntry, mergeIntoEntry, countDone } from "./entry.js";
 import { renderSettings } from "./settings.js";
@@ -21,7 +22,11 @@ const FAST_STAGES = [
   { from: 24, to: Infinity, name: "Deep Autophagy", desc: "Stem cell renewal." },
 ];
 
-const storage = Storage(localStorage);
+const backup = Backup();
+const storage = Storage(localStorage, backup);
+window.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") backup.flush();
+});
 const items = ensureItems(storage);
 
 const date = todayKey();
