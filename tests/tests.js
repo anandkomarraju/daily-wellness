@@ -212,6 +212,16 @@ it("classifyCell returns red when item not in entry's items map", () => {
   eq(classifyCell(e, "missing_id"), "red");
 });
 
+it("replaceEntries overwrites the entire entries map", () => {
+  const s = fresh();
+  s.saveEntry("2026-05-09", { date: "2026-05-09", items: {}, savedAt: "x" });
+  s.saveEntry("2026-05-10", { date: "2026-05-10", items: {}, savedAt: "y" });
+  s.replaceEntries({ "2026-05-11": { date: "2026-05-11", items: {}, savedAt: "z" } });
+  eq(s.getEntry("2026-05-09"), null, "old date should be gone");
+  eq(s.getEntry("2026-05-10"), null, "old date should be gone");
+  eq(s.getEntry("2026-05-11").savedAt, "z", "new date should be present");
+});
+
 // Render
 const root = document.getElementById("results");
 for (const r of results) {

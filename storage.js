@@ -27,6 +27,7 @@ export function Storage(backend = localStorage) {
       else writeJSON(ACTIVE_FAST_KEY, f);
     },
     getAllEntries() { return readJSON(ENTRIES_KEY, {}); },
+    replaceEntries(entries) { writeJSON(ENTRIES_KEY, entries || {}); },
     exportAll() {
       return { items: readJSON(ITEMS_KEY, null), entries: readJSON(ENTRIES_KEY, {}), activeFast: readJSON(ACTIVE_FAST_KEY, null) };
     },
