@@ -896,12 +896,6 @@ document.addEventListener("input", (ev) => {
   }
 });
 
-document.getElementById("save-btn").addEventListener("click", () => {
-  persist();
-  document.getElementById("save-btn").textContent = "Saved ✓";
-  setTimeout(() => { document.getElementById("save-btn").textContent = "Save today"; }, 1200);
-});
-
 function show() {
   const root = document.getElementById("app");
   if (view === "settings") {
