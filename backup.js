@@ -62,11 +62,26 @@ export function Backup({
     }
   }
 
+  async function shouldOverwrite(handle, snapshot) {
+    // Monotonic guard: don't let an empty/sparse snapshot clobber a richer one.
+    // An auto-mirror write that has fewer entry days than what's already stored
+    // is almost always a fresh-bootstrap overwrite (e.g. localStorage was cleared
+    // and the app reseeded defaults). Skip it so the user can still Restore.
+    const incomingDays = Object.keys((snapshot && snapshot.entries) || {}).length;
+    if (incomingDays > 0) return true;
+    const existing = await readLatest(handle);
+    if (!existing) return true;
+    const existingDays = Object.keys((existing.data && existing.data.entries) || {}).length;
+    return existingDays === 0;
+  }
+
   function writeNow(snapshot) {
     if (dbFailed) return;
-    if (db) { doPut(db, snapshot); return; }
-    // open hasn't completed yet — fall back to async path
-    openDB().then((resolved) => { if (resolved && !dbFailed) doPut(resolved, snapshot); });
+    const proceed = (handle) => {
+      shouldOverwrite(handle, snapshot).then((ok) => { if (ok) doPut(handle, snapshot); });
+    };
+    if (db) { proceed(db); return; }
+    openDB().then((resolved) => { if (resolved && !dbFailed) proceed(resolved); });
   }
 
   function queue(snapshot) {

@@ -292,14 +292,14 @@ it("Backup.queue writes once after 2s of quiet", async () => {
   const idb = makeFakeIdb();
   const clock = makeFakeClock();
   const b = Backup({ idb, now: clock.now, setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout });
-  await flushMicrotasks(); // let openDB settle
-  b.queue({ items: null, entries: {}, activeFast: null });
+  await flushMicrotasks();
+  b.queue({ items: null, entries: { d1: { foo: 1 } }, activeFast: null });
   eq(idb._stored.size, 0, "no write before debounce elapses");
   clock.advance(1999);
   eq(idb._stored.size, 0, "still no write at 1999ms");
   clock.advance(1);
+  await flushMicrotasks();
   eq(idb._stored.size, 1, "write at 2000ms");
-  eq(idb._stored.get("latest").data.entries, {});
 });
 
 it("Backup.queue coalesces rapid calls into one write with the last snapshot", async () => {
@@ -307,14 +307,15 @@ it("Backup.queue coalesces rapid calls into one write with the last snapshot", a
   const clock = makeFakeClock();
   const b = Backup({ idb, now: clock.now, setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout });
   await flushMicrotasks();
-  b.queue({ items: null, entries: { a: 1 }, activeFast: null });
+  b.queue({ items: null, entries: { d1: { a: 1 } }, activeFast: null });
   clock.advance(500);
-  b.queue({ items: null, entries: { a: 2 }, activeFast: null });
+  b.queue({ items: null, entries: { d1: { a: 2 } }, activeFast: null });
   clock.advance(500);
-  b.queue({ items: null, entries: { a: 3 }, activeFast: null });
+  b.queue({ items: null, entries: { d1: { a: 3 } }, activeFast: null });
   clock.advance(2000);
+  await flushMicrotasks();
   eq(idb._stored.size, 1, "single coalesced write");
-  eq(idb._stored.get("latest").data.entries.a, 3, "kept the last snapshot");
+  eq(idb._stored.get("latest").data.entries.d1.a, 3, "kept the last snapshot");
 });
 
 it("Backup.flush writes immediately and cancels timer", async () => {
@@ -322,10 +323,28 @@ it("Backup.flush writes immediately and cancels timer", async () => {
   const clock = makeFakeClock();
   const b = Backup({ idb, now: clock.now, setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout });
   await flushMicrotasks();
-  b.queue({ items: null, entries: { a: 1 }, activeFast: null });
+  b.queue({ items: null, entries: { d1: {} }, activeFast: null });
   b.flush();
+  await flushMicrotasks();
   eq(idb._stored.size, 1, "wrote immediately");
   eq(clock.pending(), 0, "timer cleared");
+});
+
+it("Backup.queue skips overwrite when incoming snapshot has fewer entry days", async () => {
+  const idb = makeFakeIdb();
+  const clock = makeFakeClock();
+  const b = Backup({ idb, now: clock.now, setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout });
+  await flushMicrotasks();
+  // First, write a rich snapshot
+  b.queue({ items: null, entries: { d1: { x: 1 }, d2: { y: 2 } }, activeFast: null });
+  b.flush();
+  await flushMicrotasks();
+  eq(idb._stored.get("latest").data.entries.d1.x, 1, "rich snapshot stored");
+  // Now try to write an empty snapshot — should be skipped
+  b.queue({ items: null, entries: {}, activeFast: null });
+  b.flush();
+  await flushMicrotasks();
+  eq(Object.keys(idb._stored.get("latest").data.entries).length, 2, "rich snapshot preserved");
 });
 
 it("Backup.queue is a no-op when openDB fails", async () => {
@@ -388,6 +407,7 @@ it("Backup.restore returns the snapshot after queue + flush", async () => {
   const snap = { items: null, entries: { "2026-05-10": { foo: 1 } }, activeFast: null };
   b.queue(snap);
   b.flush();
+  await flushMicrotasks();
   const r = await b.restore();
   eq(r.savedAt, 12345);
   eq(r.data, snap);
