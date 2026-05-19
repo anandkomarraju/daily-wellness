@@ -2,6 +2,7 @@ import { Storage } from "../storage.js";
 import { defaultItems, ensureItems, nextOrder } from "../items.js";
 import { todayKey, blankEntry, countDone, mergeIntoEntry, snapshotItems } from "../entry.js";
 import { computeDateWindow, classifyCell } from "../timeline.js";
+import { mergeKeepingToday } from "../backup.js";
 
 const results = [];
 function it(name, fn) {
@@ -220,6 +221,42 @@ it("replaceEntries overwrites the entire entries map", () => {
   eq(s.getEntry("2026-05-09"), null, "old date should be gone");
   eq(s.getEntry("2026-05-10"), null, "old date should be gone");
   eq(s.getEntry("2026-05-11").savedAt, "z", "new date should be present");
+});
+
+it("mergeKeepingToday with empty current returns incoming entries verbatim, activeFast null", () => {
+  const incoming = {
+    items: { items: [{ id: "a" }] },
+    entries: { "2026-05-10": { date: "2026-05-10", items: {} } },
+    activeFast: { startMs: 1 },
+  };
+  const current = { items: null, entries: {}, activeFast: null };
+  const out = mergeKeepingToday(incoming, current, "2026-05-18");
+  eq(out.items, incoming.items);
+  eq(out.entries, incoming.entries);
+  eq(out.activeFast, null);
+});
+
+it("mergeKeepingToday preserves today's entry from current", () => {
+  const incoming = {
+    items: null,
+    entries: {
+      "2026-05-10": { date: "2026-05-10", items: { a: { checked: false } } },
+      "2026-05-18": { date: "2026-05-18", items: { a: { checked: false } } },
+    },
+    activeFast: null,
+  };
+  const todays = { date: "2026-05-18", items: { a: { checked: true } } };
+  const current = { items: null, entries: { "2026-05-18": todays }, activeFast: null };
+  const out = mergeKeepingToday(incoming, current, "2026-05-18");
+  eq(out.entries["2026-05-18"], todays, "today preserved");
+  eq(out.entries["2026-05-10"], incoming.entries["2026-05-10"], "other date from incoming");
+});
+
+it("mergeKeepingToday preserves current activeFast", () => {
+  const incoming = { items: null, entries: {}, activeFast: { startMs: 1 } };
+  const current = { items: null, entries: {}, activeFast: { startMs: 999 } };
+  const out = mergeKeepingToday(incoming, current, "2026-05-18");
+  eq(out.activeFast, current.activeFast);
 });
 
 // Render
