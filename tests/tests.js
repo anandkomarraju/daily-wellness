@@ -339,6 +339,28 @@ it("Backup.queue is a no-op when openDB fails", async () => {
   eq(idb._stored.size, 0);
 });
 
+it("Backup.restore returns null when no prior write", async () => {
+  const idb = makeFakeIdb();
+  const clock = makeFakeClock();
+  const b = Backup({ idb, now: clock.now, setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout });
+  await flushMicrotasks();
+  const r = await b.restore();
+  eq(r, null);
+});
+
+it("Backup.restore returns the snapshot after queue + flush", async () => {
+  const idb = makeFakeIdb();
+  const clock = makeFakeClock();
+  const b = Backup({ idb, now: () => 12345, setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout });
+  await flushMicrotasks();
+  const snap = { items: null, entries: { "2026-05-10": { foo: 1 } }, activeFast: null };
+  b.queue(snap);
+  b.flush();
+  const r = await b.restore();
+  eq(r.savedAt, 12345);
+  eq(r.data, snap);
+});
+
 // Render
 await Promise.all(pending);
 const root = document.getElementById("results");
