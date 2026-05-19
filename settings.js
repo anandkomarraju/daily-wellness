@@ -12,7 +12,7 @@ function uniqueId(items, base) {
   return `${base}_${n}`;
 }
 
-export function renderSettings(root, storage, items, onChange) {
+export function renderSettings(root, storage, items, onChange, backup) {
   const controller = new AbortController();
   const { signal } = controller;
 
@@ -54,6 +54,25 @@ export function renderSettings(root, storage, items, onChange) {
     reset.textContent = "Reset to defaults";
     wrap.appendChild(reset);
 
+    const restore = document.createElement("button");
+    restore.className = "reset";
+    restore.id = "restore-btn";
+    restore.textContent = "Restore from backup";
+    wrap.appendChild(restore);
+
+    const importBtn = document.createElement("button");
+    importBtn.className = "reset";
+    importBtn.id = "import-btn";
+    importBtn.textContent = "Import file";
+    wrap.appendChild(importBtn);
+
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = ".json,application/json";
+    fileInput.id = "import-file";
+    fileInput.style.display = "none";
+    wrap.appendChild(fileInput);
+
     root.appendChild(wrap);
   }
 
@@ -75,6 +94,34 @@ export function renderSettings(root, storage, items, onChange) {
         order: nextOrder(items),
       });
       save();
+      return;
+    }
+    if (ev.target.id === "restore-btn") {
+      (async () => {
+        if (!backup) { alert("Backup storage unavailable in this browser."); return; }
+        let snap = null;
+        try { snap = await backup.restore(); } catch { alert("Backup storage unavailable in this browser."); return; }
+        if (!snap) { alert("No backup found yet."); return; }
+        const todayStr = new Date(snap.savedAt).toLocaleString();
+        const dayCount = Object.keys(snap.data.entries || {}).length;
+        if (!confirm(`Restore snapshot from ${todayStr} (${dayCount} days)? This replaces history except today's entry and your active fast.`)) return;
+        try {
+          const { mergeKeepingToday } = await import("./backup.js");
+          const { todayKey } = await import("./entry.js");
+          const merged = mergeKeepingToday(snap.data, storage.exportAll(), todayKey());
+          storage.saveItems(merged.items);
+          storage.replaceEntries(merged.entries);
+          storage.saveActiveFast(merged.activeFast);
+          alert("Restore complete.");
+          onChange(items, "back");
+        } catch (e) {
+          alert("Restore failed: " + e.message);
+        }
+      })();
+      return;
+    }
+    if (ev.target.id === "import-btn") {
+      root.querySelector("#import-file").click();
       return;
     }
     const itemRow = ev.target.closest(".item");
@@ -101,6 +148,33 @@ export function renderSettings(root, storage, items, onChange) {
   }, { signal });
 
   root.addEventListener("change", (ev) => {
+    if (ev.target.id === "import-file") {
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      (async () => {
+        try {
+          const text = await file.text();
+          let parsed;
+          try { parsed = JSON.parse(text); } catch { alert("File is not valid JSON."); return; }
+          const { mergeKeepingToday, validateImport } = await import("./backup.js");
+          const { todayKey } = await import("./entry.js");
+          try { validateImport(parsed); } catch (e) { alert(e.message); return; }
+          const dayCount = Object.keys(parsed.entries || {}).length;
+          if (!confirm(`Import ${dayCount} days from this file? This replaces history except today's entry and your active fast.`)) return;
+          const merged = mergeKeepingToday(parsed, storage.exportAll(), todayKey());
+          storage.saveItems(merged.items);
+          storage.replaceEntries(merged.entries);
+          storage.saveActiveFast(merged.activeFast);
+          alert("Import complete.");
+          onChange(items, "back");
+        } catch (e) {
+          alert("Import failed: " + e.message);
+        } finally {
+          ev.target.value = "";
+        }
+      })();
+      return;
+    }
     if (ev.target.matches('.flat-list input[type="text"]')) {
       const id = ev.target.closest(".item").dataset.id;
       const it = items.items.find(i => i.id === id);

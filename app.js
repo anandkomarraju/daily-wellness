@@ -912,7 +912,7 @@ function show() {
       const merged = mergeIntoEntry(entry, items);
       Object.assign(entry, merged);
       persist();
-    });
+    }, backup);
   } else if (view === "timeline") {
     document.getElementById("title").textContent = "Timeline";
     document.getElementById("stat").textContent = "";
