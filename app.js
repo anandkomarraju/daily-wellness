@@ -358,26 +358,19 @@ function paintHeroCard(root) {
   hero.className = "hero";
 
   const scores = computeScores();
+  const overall = scores.overall;
+  const status = overall >= 75 ? "met" : overall >= 50 ? "ok" : "low";
 
   const scoreBlock = document.createElement("div");
   scoreBlock.className = "score-block";
-  const r = 95;
-  const c = 2 * Math.PI * r;
-  const off = c * (1 - scores.overall / 100);
   scoreBlock.innerHTML = `
-    <div class="score-ring">
-      <svg viewBox="0 0 220 220">
-        <circle class="track" cx="110" cy="110" r="${r}" stroke-width="8" />
-        <circle class="prog"  cx="110" cy="110" r="${r}" stroke-width="8"
-                stroke-dasharray="${c}" stroke-dashoffset="${off}" />
-      </svg>
-      <div class="center">
-        <div class="num">${scores.overall}</div>
-        <div class="denom">Today</div>
-        <div class="label">Wellness Score</div>
-      </div>
+    <div class="score-row">
+      <span class="score-num" data-status="${status}">${overall}</span>
+      <span class="score-denom">/100</span>
+      <span class="score-label">Wellness Score</span>
     </div>
-    <div class="score-tagline">${scoreTagline(scores.overall)}</div>
+    <div class="score-bar"><span style="width:${Math.max(0, Math.min(100, overall))}%"></span></div>
+    <div class="score-tagline">${scoreTagline(overall)}</div>
   `;
   hero.appendChild(scoreBlock);
   root.appendChild(hero);

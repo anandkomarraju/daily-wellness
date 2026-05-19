@@ -153,50 +153,28 @@
       border: 1px solid var(--line); background: white; color: var(--muted); cursor: pointer; }
     .settings .flat-list .macros-chip.on { background: var(--fg); color: white; border-color: var(--fg); }
 
-    /* === SCORE-CARD HERO (dark / premium) === */
+    /* === SCORE CARD (light / inline) === */
     .hero {
-      background: radial-gradient(circle at top right, #2a3548 0%, #1a2333 50%, #0f1825 100%);
-      border-radius: 24px;
-      padding: 28px 22px 24px;
-      margin: 12px 0 20px;
-      color: #e8edf5;
-      box-shadow: 0 12px 40px rgba(15, 24, 37, 0.45), 0 4px 12px rgba(15, 24, 37, 0.25);
-      position: relative; overflow: hidden;
+      background: white; border: 1px solid var(--line); border-radius: 16px;
+      padding: 18px; margin: 12px 0 14px;
+      display: flex; flex-direction: column; gap: 10px;
     }
-    .hero::before {
-      content: ""; position: absolute; top: -100px; right: -100px;
-      width: 240px; height: 240px;
-      background: radial-gradient(circle, rgba(127, 201, 150, 0.18) 0%, transparent 70%);
-      pointer-events: none;
-    }
-    .hero::after {
-      content: ""; position: absolute; bottom: -80px; left: -80px;
-      width: 200px; height: 200px;
-      background: radial-gradient(circle, rgba(106, 140, 175, 0.14) 0%, transparent 70%);
-      pointer-events: none;
-    }
-    /* Score block — the centerpiece */
-    .score-block { position: relative; display: flex; flex-direction: column;
-      align-items: center; padding: 10px 0 22px; z-index: 1; }
-    .score-ring { position: relative; width: 220px; height: 220px;
-      filter: drop-shadow(0 8px 24px rgba(127, 201, 150, 0.25)); }
-    .score-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-    .score-ring .track { fill: none; stroke: rgba(255,255,255,0.08); stroke-width: 8; }
-    .score-ring .prog { fill: none; stroke: url(#grad-score); stroke-width: 8;
-      stroke-linecap: round; transition: stroke-dashoffset 600ms cubic-bezier(.4,0,.2,1); }
-    .score-ring .center { position: absolute; inset: 0; display: flex;
-      flex-direction: column; align-items: center; justify-content: center; }
-    .score-ring .num { font-size: 76px; font-weight: 700; line-height: 1;
-      letter-spacing: -0.04em; color: #fff;
-      background: linear-gradient(180deg, #ffffff 0%, #b8d4c0 100%);
-      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-    .score-ring .denom { font-size: 13px; color: rgba(232,237,245,0.5); margin-top: 2px;
-      letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; }
-    .score-ring .label { font-size: 11px; color: rgba(232,237,245,0.45); margin-top: 6px;
-      letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; }
-    .score-tagline { color: rgba(232,237,245,0.7); font-size: 13px; margin-top: 16px;
-      font-weight: 500; letter-spacing: 0.02em; text-align: center; }
-    .score-tagline strong { color: #a8e0c4; font-weight: 700; }
+    .score-block { display: flex; flex-direction: column; gap: 10px; }
+    .score-row { display: flex; align-items: baseline; gap: 8px; }
+    .score-num { font-size: 56px; font-weight: 700; line-height: 1;
+      letter-spacing: -0.03em; color: #2d7a4d; font-variant-numeric: tabular-nums; }
+    .score-num[data-status="ok"]   { color: #c89b3c; }
+    .score-num[data-status="low"]  { color: #b54e3a; }
+    .score-denom { font-size: 18px; color: var(--muted); font-weight: 500; }
+    .score-label { font-size: 11px; color: var(--muted); margin-left: auto;
+      letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600;
+      align-self: center; }
+    .score-bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+    .score-bar > span { display: block; height: 100%;
+      background: linear-gradient(90deg, #a8e0c4 0%, #4a9b6a 100%);
+      border-radius: 4px; transition: width 600ms cubic-bezier(.4,0,.2,1); }
+    .score-tagline { color: var(--muted); font-size: 13px; }
+    .score-tagline strong { color: var(--fg); font-weight: 700; }
 
     /* 5 mini progress rings under the score */
     .mini-rings { position: relative; z-index: 1; display: grid;
