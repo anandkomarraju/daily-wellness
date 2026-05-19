@@ -1,7 +1,7 @@
 import { Storage } from "../storage.js";
 import { defaultItems, ensureItems, nextOrder } from "../items.js";
 import { todayKey, blankEntry, countDone, mergeIntoEntry, snapshotItems } from "../entry.js";
-import { Backup, mergeKeepingToday } from "../backup.js";
+import { Backup, mergeKeepingToday, validateImport } from "../backup.js";
 
 const results = [];
 const pending = [];
@@ -391,6 +391,22 @@ it("Backup.restore returns the snapshot after queue + flush", async () => {
   const r = await b.restore();
   eq(r.savedAt, 12345);
   eq(r.data, snap);
+});
+
+it("validateImport throws when entries is missing", () => {
+  let threw = false;
+  try { validateImport({ items: null, activeFast: null }); } catch { threw = true; }
+  if (!threw) throw new Error("expected throw");
+});
+
+it("validateImport throws when entries is an array", () => {
+  let threw = false;
+  try { validateImport({ entries: [], items: null, activeFast: null }); } catch { threw = true; }
+  if (!threw) throw new Error("expected throw");
+});
+
+it("validateImport accepts a valid envelope", () => {
+  validateImport({ entries: { "2026-05-10": {} }, items: null, activeFast: null });
 });
 
 // Render

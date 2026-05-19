@@ -1,3 +1,10 @@
+export function validateImport(incoming) {
+  if (!incoming || typeof incoming !== "object") throw new Error("File doesn't look like a wellness export");
+  const e = incoming.entries;
+  if (!e || typeof e !== "object" || Array.isArray(e)) throw new Error("File doesn't look like a wellness export");
+  return incoming;
+}
+
 export function mergeKeepingToday(incoming, current, todayKey) {
   const entries = { ...incoming.entries };
   if (current.entries && current.entries[todayKey]) {
