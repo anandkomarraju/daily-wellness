@@ -20,6 +20,7 @@ export function Backup({
   setTimeout: schedule = globalThis.setTimeout.bind(globalThis),
   clearTimeout: cancel = globalThis.clearTimeout.bind(globalThis),
 } = {}) {
+  let db = null;            // sync handle once open resolves
   let dbPromise = null;
   let dbFailed = false;
   let pendingSnapshot = null;
@@ -31,12 +32,12 @@ export function Backup({
     dbPromise = new Promise((resolve) => {
       const req = idb.open(DB_NAME, 1);
       req.onupgradeneeded = (ev) => {
-        const db = ev.target.result;
-        if (!db.objectStoreNames || !db.objectStoreNames.contains || !db.objectStoreNames.contains(STORE)) {
-          try { db.createObjectStore(STORE, { keyPath: "id" }); } catch {}
+        const handle = ev.target.result;
+        if (!handle.objectStoreNames || !handle.objectStoreNames.contains || !handle.objectStoreNames.contains(STORE)) {
+          try { handle.createObjectStore(STORE, { keyPath: "id" }); } catch {}
         }
       };
-      req.onsuccess = (ev) => resolve(ev.target.result);
+      req.onsuccess = (ev) => { db = ev.target.result; resolve(db); };
       req.onerror = () => { dbFailed = true; console.warn("[backup] open failed"); resolve(null); };
     });
     return dbPromise;
@@ -45,16 +46,20 @@ export function Backup({
   // Kick off openDB eagerly so failure is detected before first queue
   openDB();
 
-  async function writeNow(snapshot) {
+  function doPut(handle, snapshot) {
     try {
-      const db = await openDB();
-      if (!db || dbFailed) return;
-      const tx = db.transaction(STORE, "readwrite");
-      const store = tx.objectStore(STORE);
-      store.put({ id: "latest", savedAt: now(), data: snapshot });
+      const tx = handle.transaction(STORE, "readwrite");
+      tx.objectStore(STORE).put({ id: "latest", savedAt: now(), data: snapshot });
     } catch (e) {
       console.warn("[backup] write failed", e);
     }
+  }
+
+  function writeNow(snapshot) {
+    if (dbFailed) return;
+    if (db) { doPut(db, snapshot); return; }
+    // open hasn't completed yet — fall back to async path
+    openDB().then((resolved) => { if (resolved && !dbFailed) doPut(resolved, snapshot); });
   }
 
   function queue(snapshot) {
@@ -78,12 +83,10 @@ export function Backup({
     }
   }
 
-  async function restore() {
-    const db = await openDB();
-    if (!db) return null;
+  function readLatest(handle) {
     return new Promise((resolve) => {
       try {
-        const tx = db.transaction(STORE, "readonly");
+        const tx = handle.transaction(STORE, "readonly");
         const req = tx.objectStore(STORE).get("latest");
         req.onsuccess = (ev) => resolve(ev.target.result || null);
         req.onerror = () => resolve(null);
@@ -91,6 +94,13 @@ export function Backup({
         resolve(null);
       }
     });
+  }
+
+  async function restore() {
+    if (db) return readLatest(db);
+    const handle = await openDB();
+    if (!handle) return null;
+    return readLatest(handle);
   }
 
   function close() { /* tests use this; real DB stays open */ }

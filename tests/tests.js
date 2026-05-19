@@ -5,9 +5,12 @@ import { computeDateWindow, classifyCell } from "../timeline.js";
 import { Backup, mergeKeepingToday } from "../backup.js";
 
 const results = [];
+const pending = [];
 function it(name, fn) {
-  try { fn(); results.push({ name, pass: true }); }
-  catch (e) { results.push({ name, pass: false, err: e.message }); }
+  pending.push((async () => {
+    try { await fn(); results.push({ name, pass: true }); }
+    catch (e) { results.push({ name, pass: false, err: e.message }); }
+  })());
 }
 function eq(a, b, msg) {
   if (JSON.stringify(a) !== JSON.stringify(b))
@@ -373,6 +376,7 @@ it("Backup.queue is a no-op when openDB fails", async () => {
 });
 
 // Render
+await Promise.all(pending);
 const root = document.getElementById("results");
 for (const r of results) {
   const li = document.createElement("li");
