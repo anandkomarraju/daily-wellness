@@ -358,16 +358,7 @@ function paintHeroCard(root) {
   hero.className = "hero";
 
   const scores = computeScores();
-  const t = macroTotals();
-  const goalH = entry.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
-  const isFasting = !!activeFast;
-  const totalH = totalFastedHoursToday();
-  const stage = isFasting ? currentFastStage(totalH) : null;
-  const w = entry.waterOz ?? 0;
-  const s = entry.steps ?? 0;
-  const { done, total } = countDone(entry);
 
-  // === Big score ring ===
   const scoreBlock = document.createElement("div");
   scoreBlock.className = "score-block";
   const r = 95;
@@ -389,51 +380,6 @@ function paintHeroCard(root) {
     <div class="score-tagline">${scoreTagline(scores.overall)}</div>
   `;
   hero.appendChild(scoreBlock);
-
-  // === 5 mini progress rings (read-only, always visible) ===
-  const sugarWarn = t.su > 40;
-
-  function miniRing(key, icon, primary, secondary, frac, gradId, isWarn) {
-    const r = 26;
-    const c = 2 * Math.PI * r;
-    const off = c * (1 - Math.max(0, Math.min(1, frac / 100)));
-    const cls = isWarn ? "mini-ring warn" : (frac >= 100 ? "mini-ring complete" : "mini-ring");
-    return `
-      <div class="${cls}" data-key="${key}">
-        <div class="mini-wrap">
-          <svg viewBox="0 0 64 64">
-            <circle class="track" cx="32" cy="32" r="${r}" stroke-width="6" />
-            <circle class="prog"  cx="32" cy="32" r="${r}" stroke-width="6"
-                    stroke-dasharray="${c}" stroke-dashoffset="${off}"
-                    stroke="url(#${gradId})"
-                    transform="rotate(-90 32 32)" />
-          </svg>
-          <div class="mini-center">
-            <div class="mini-icon">${icon}</div>
-          </div>
-        </div>
-        <div class="mini-primary">${primary}</div>
-        <div class="mini-secondary">${secondary}</div>
-      </div>
-    `;
-  }
-
-  const fastDisplay = totalH > 0 ? `${totalH.toFixed(1)}h` : "—";
-  const fastSecondary = isFasting
-    ? (stage ? stage.name : `goal ${goalH}h`)
-    : (totalH > 0 ? `${(entry.completedFasts ?? []).length} done` : `goal ${goalH}h`);
-
-  const rings = document.createElement("div");
-  rings.className = "mini-rings";
-  rings.innerHTML = `
-    ${miniRing("fast",      "🩸",  fastDisplay,                                    fastSecondary,                  scores.fast,      "grad-score")}
-    ${miniRing("water",     "💧",  `${w}<span class='unit'> oz</span>`,            `of 140`,                       scores.water,     "grad-carbs")}
-    ${miniRing("steps",     "👟",  s >= 1000 ? `${(s/1000).toFixed(1)}<span class='unit'>k</span>` : `${s}`, `of 10k`,       scores.steps,     "grad-fats")}
-    ${miniRing("nutrients", "🍽️", `${t.kcal}<span class='unit'> cal</span>`,        sugarWarn ? "sugar over" : `of 1800`,            scores.nutrients, "grad-fiber", sugarWarn)}
-    ${miniRing("routine",   "✓",   `${done}<span class='unit'>/${total}</span>`,    `done`,                         scores.routine,   "grad-protein")}
-  `;
-  hero.appendChild(rings);
-
   root.appendChild(hero);
 }
 
@@ -526,6 +472,20 @@ function renderToday() {
   const root = document.getElementById("app");
   root.innerHTML = "";
   paintHeroCard(root);
+
+  // Fasting + Steps rings (moved from Tracking)
+  const controls = document.createElement("section");
+  controls.className = "controls-panel";
+  controls.innerHTML = renderControlsPanel();
+  root.appendChild(controls);
+
+  // Nutrient rings (moved from Tracking)
+  const nutWrap = document.createElement("section");
+  nutWrap.className = "nutrients-block";
+  nutWrap.id = "macros-block";
+  nutWrap.innerHTML = renderNutrientRings(macroTotals());
+  root.appendChild(nutWrap);
+
   startTicker();
 }
 
@@ -680,19 +640,6 @@ function renderTracking() {
 
   const root = document.getElementById("app");
   root.innerHTML = "";
-
-  // === Top: Fasting + Steps rings side-by-side ===
-  const controls = document.createElement("section");
-  controls.className = "controls-panel";
-  controls.innerHTML = renderControlsPanel();
-  root.appendChild(controls);
-
-  // Nutrient rings — sum of all macros from meals today
-  const nutWrap = document.createElement("section");
-  nutWrap.className = "nutrients-block";
-  nutWrap.id = "macros-block";
-  nutWrap.innerHTML = renderNutrientRings(macroTotals());
-  root.appendChild(nutWrap);
 
   // Water panel
   const waterWrap = document.createElement("section");
