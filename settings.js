@@ -1,4 +1,76 @@
 import { defaultItems, nextOrder } from "./items.js";
+import { DEFAULT_GOALS, loadGoals, saveGoals } from "./goals.js";
+
+const GOAL_FIELDS = [
+  { key: "water_oz",    label: "Water",     unit: "oz",  hint: "daily intake target" },
+  { key: "steps",       label: "Steps",     unit: "",    hint: "daily walking goal" },
+  { key: "kcal",        label: "Calories",  unit: "kcal", hint: "daily intake target" },
+  { key: "protein_g",   label: "Protein",   unit: "g",   hint: "daily minimum" },
+  { key: "fiber_g",     label: "Fiber",     unit: "g",   hint: "daily minimum" },
+  { key: "fats_g",      label: "Fats",      unit: "g",   hint: "daily target" },
+  { key: "net_carbs_g", label: "Net Carbs", unit: "g",   hint: "daily target" },
+  { key: "sugar_max_g", label: "Sugar",     unit: "g",   hint: "daily maximum (warning)" },
+];
+
+export function renderGoals(root, storage, onBack) {
+  const controller = new AbortController();
+  const { signal } = controller;
+  let goals = loadGoals(storage);
+
+  function paint() {
+    root.innerHTML = `<a href="#" class="back" id="back-link">← Back</a>`;
+    const wrap = document.createElement("div");
+    wrap.className = "settings goals";
+
+    const intro = document.createElement("p");
+    intro.style.color = "var(--muted)";
+    intro.style.fontSize = "13px";
+    intro.style.margin = "0 0 12px";
+    intro.textContent = "Set your daily targets. Saved automatically.";
+    wrap.appendChild(intro);
+
+    const list = document.createElement("div");
+    list.className = "flat-list";
+    for (const f of GOAL_FIELDS) {
+      const row = document.createElement("div");
+      row.className = "item goal-row";
+      row.innerHTML = `
+        <label style="flex:1; font-weight:500;">${f.label}<br><small style="color:var(--muted); font-weight:400;">${f.hint}</small></label>
+        <input type="number" min="1" inputmode="numeric" data-key="${f.key}" value="${goals[f.key]}" style="width:90px; text-align:right;" />
+        <span style="color:var(--muted); font-size:13px; min-width:30px;">${f.unit}</span>
+      `;
+      list.appendChild(row);
+    }
+    wrap.appendChild(list);
+
+    const reset = document.createElement("button");
+    reset.className = "reset";
+    reset.id = "reset-goals-btn";
+    reset.textContent = "Reset to defaults";
+    wrap.appendChild(reset);
+
+    root.appendChild(wrap);
+  }
+
+  root.addEventListener("click", (ev) => {
+    if (ev.target.id === "back-link") { ev.preventDefault(); controller.abort(); onBack(); return; }
+    if (ev.target.id === "reset-goals-btn") {
+      if (!confirm("Reset all goals to defaults?")) return;
+      goals = saveGoals(storage, { ...DEFAULT_GOALS });
+      paint();
+    }
+  }, { signal });
+
+  root.addEventListener("change", (ev) => {
+    if (ev.target.matches('.goal-row input[type="number"]')) {
+      const key = ev.target.dataset.key;
+      goals = saveGoals(storage, { ...goals, [key]: ev.target.value });
+      ev.target.value = goals[key];
+    }
+  }, { signal });
+
+  paint();
+}
 
 function slugify(s) {
   const base = s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
@@ -48,6 +120,12 @@ export function renderSettings(root, storage, items, onChange, backup) {
     addBtn.textContent = "+ add item";
     wrap.appendChild(addBtn);
 
+    const goalsLink = document.createElement("button");
+    goalsLink.className = "reset";
+    goalsLink.id = "edit-goals-btn";
+    goalsLink.textContent = "Edit goals →";
+    wrap.appendChild(goalsLink);
+
     const reset = document.createElement("button");
     reset.className = "reset";
     reset.id = "reset-btn";
@@ -83,6 +161,11 @@ export function renderSettings(root, storage, items, onChange, backup) {
       const fresh = defaultItems();
       items.items = fresh.items;
       save();
+      return;
+    }
+    if (ev.target.id === "edit-goals-btn") {
+      controller.abort();
+      onChange(items, "goals");
       return;
     }
     if (ev.target.id === "add-btn") {

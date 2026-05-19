@@ -48,6 +48,10 @@ export function renderHistory(root, storage) {
   const compute = window.__wellness_computeScores;
   const macroT = window.__wellness_macroTotals;
   const totalFastedForEntry = window.__wellness_totalFastedHoursForEntry;
+  const g = window.__wellness_goals ? window.__wellness_goals() : { water_oz: 140, protein_g: 125, fiber_g: 35 };
+  const waterGoal = g.water_oz;
+  const proteinGoal = g.protein_g;
+  const fiberGoal = g.fiber_g;
 
   for (const date of dates) {
     const e = all[date];
@@ -83,8 +87,8 @@ export function renderHistory(root, storage) {
       <div class="tl-rings">
         ${ringMini("Score",     scores.overall,    scores.overall, overallStatus)}
         ${ringMini("Fast",      fastDisp,          scores.fast,    fastedH >= goalH ? "met" : "unmet")}
-        ${ringMini("Water",     waterDisp,         scores.water,   water >= 140 ? "met" : "unmet")}
-        ${ringMini("Nutrients", nutDisp,           scores.nutrients, (t.p >= 125 && t.fi >= 35) ? "met" : "unmet")}
+        ${ringMini("Water",     waterDisp,         scores.water,   water >= waterGoal ? "met" : "unmet")}
+        ${ringMini("Nutrients", nutDisp,           scores.nutrients, (t.p >= proteinGoal && t.fi >= fiberGoal) ? "met" : "unmet")}
         ${ringMini("Recovery",  recoveryDisp,      recoveryDone,   recoveryDone === 100 ? "met" : "unmet")}
       </div>
     `;

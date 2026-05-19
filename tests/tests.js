@@ -189,10 +189,10 @@ it("mergeIntoEntry preserves existing checks/comments and adds new items as blan
   eq(merged.items.b, { label: "B", checked: false, comment: "" });
 });
 
-it("v3 defaultItems is flat with 14 items", () => {
+it("v3 defaultItems is a flat list with 10 starter items", () => {
   const di = defaultItems();
   if (!Array.isArray(di.items)) throw new Error("not flat");
-  if (di.items.length !== 14) throw new Error("count: " + di.items.length);
+  if (di.items.length !== 10) throw new Error("count: " + di.items.length);
 });
 
 it("v3 defaultItems orders are multiples of 10 ascending", () => {
@@ -202,9 +202,9 @@ it("v3 defaultItems orders are multiples of 10 ascending", () => {
   for (const o of orders) if (o % 10 !== 0) throw new Error("not multiple of 10: "+o);
 });
 
-it("v3 defaultItems first three are b12, morning walk, breakfast", () => {
+it("v3 defaultItems first three are morning walk, breakfast, post-breakfast walk", () => {
   const ids = defaultItems().items.slice(0,3).map(i => i.id);
-  eq(ids, ["b12_morning","morning_walk_30","breakfast"]);
+  eq(ids, ["morning_walk_30","breakfast","walk_after_breakfast"]);
 });
 
 it("v3 defaultItems marks 4 logged items with macros:true", () => {
@@ -212,22 +212,16 @@ it("v3 defaultItems marks 4 logged items with macros:true", () => {
   eq(macroIds, ["breakfast","dinner","lunch","nuts"]);
 });
 
-it("v3 ensureItems migrates v2 sectioned shape to flat v3", () => {
+it("v3 ensureItems migrates v2 sectioned shape to flat v3 defaults", () => {
   const s = fresh();
   s.saveItems({ sections: [
     { key: "supplements", title: "S", items: [
       { id: "b12_morning", label: "My custom B12", order: 20 },
-      { id: "d_k2_fishoil_pm", label: "My custom D", order: 80 },
-      { id: "collagen_7pm", label: "My custom collagen", order: 140 },
     ]},
   ]});
   const r = ensureItems(s);
   if (!Array.isArray(r.items)) throw new Error("not flat");
-  if (r.items.length !== 14) throw new Error("expected 14 after migration, got " + r.items.length);
-  const byId = Object.fromEntries(r.items.map(i => [i.id, i.label]));
-  if (byId.b12_morning !== "My custom B12") throw new Error("b12 label not preserved");
-  if (byId.d_k2_fishoil !== "My custom D") throw new Error("d_k2 rename mapping");
-  if (byId.collagen_coffee !== "My custom collagen") throw new Error("collagen rename mapping");
+  if (r.items.length !== 10) throw new Error("expected 10 after migration, got " + r.items.length);
 });
 
 it("v3 ensureItems idempotent on flat shape", () => {

@@ -1,8 +1,9 @@
 import { Storage } from "./storage.js";
 import { Backup } from "./backup.js";
 import { ensureItems, ICONS } from "./items.js";
+import { loadGoals } from "./goals.js";
 import { todayKey, blankEntry, mergeIntoEntry, countDone } from "./entry.js";
-import { renderSettings } from "./settings.js";
+import { renderSettings, renderGoals } from "./settings.js";
 import { renderHistory } from "./history.js";
 
 // Expose helpers used by history.js timeline view (so it can compute past-day scores)
@@ -28,6 +29,8 @@ window.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") backup.flush();
 });
 const items = ensureItems(storage);
+let goals = loadGoals(storage);
+function refreshGoals() { goals = loadGoals(storage); }
 
 const date = todayKey();
 const existing = storage.getEntry(date);
@@ -297,14 +300,14 @@ function computeScores(e = entry, dateKey = date) {
   const fastFrac = Math.min(1, totalFastedHoursForEntry(e, dateKey) / goalH);
 
   const w = e?.waterOz ?? 0;
-  const waterFrac = Math.min(1, w / 140);
+  const waterFrac = Math.min(1, w / goals.water_oz);
 
   const s = e?.steps ?? 0;
-  const stepsFrac = Math.min(1, s / 10000);
+  const stepsFrac = Math.min(1, s / goals.steps);
 
   const t = macroTotals(e);
-  const pFrac    = Math.min(1, t.p / 125);
-  const fiFrac   = Math.min(1, t.fi / 35);
+  const pFrac    = Math.min(1, t.p / goals.protein_g);
+  const fiFrac   = Math.min(1, t.fi / goals.fiber_g);
   const nutFrac  = (pFrac + fiFrac) / 2;
 
   const recoveryDone = e?.items?.["recovery_routine"]?.checked ? 1 : 0;
@@ -405,12 +408,12 @@ function renderNutrientRings(t) {
   return `
     <div class="nutrients-title">Today's Nutrients</div>
     <div class="nutrient-rings">
-      ${ring("kcal","Calories",  t.kcal, 1800, "", "min")}
-      ${ring("p",   "Protein",   t.p,    125,  "g", "min")}
-      ${ring("fi",  "Fiber",     t.fi,   35,   "g", "min")}
-      ${ring("fa",  "Fats",      t.fa,   75,   "g", "max")}
-      ${ring("c",   "Net Carbs", t.c,    90,   "g", "max")}
-      ${ring("su",  "Sugar",     t.su,   40,   "g", "max")}
+      ${ring("kcal","Calories",  t.kcal, goals.kcal,        "",  "min")}
+      ${ring("p",   "Protein",   t.p,    goals.protein_g,   "g", "min")}
+      ${ring("fi",  "Fiber",     t.fi,   goals.fiber_g,     "g", "min")}
+      ${ring("fa",  "Fats",      t.fa,   goals.fats_g,      "g", "max")}
+      ${ring("c",   "Net Carbs", t.c,    goals.net_carbs_g, "g", "max")}
+      ${ring("su",  "Sugar",     t.su,   goals.sugar_max_g, "g", "max")}
     </div>
   `;
 }
@@ -564,7 +567,7 @@ function renderFastingRing() {
 
 function renderStepsRing() {
   const s = entry.steps ?? 0;
-  const goal = 10000;
+  const goal = goals.steps;
   const p = Math.min(100, Math.round((s / goal) * 100));
   const status = s >= goal ? "met" : "unmet";
   const display = s >= 1000 ? `${(s/1000).toFixed(1)}` : `${s}`;
@@ -573,7 +576,7 @@ function renderStepsRing() {
   const centerHtml = stepsEditOpen
     ? `<input type="number" min="0" inputmode="numeric" id="steps-input" value="${s || ''}" placeholder="0" autofocus />`
     : `<div class="ring-center-num" data-status="${status}">${display}<span class="ring-unit">${unit}</span></div>
-       <div class="ring-center-goal">/ 10k</div>`;
+       <div class="ring-center-goal">/ ${goal >= 1000 ? (goal/1000).toFixed(goal % 1000 === 0 ? 0 : 1) + "k" : goal}</div>`;
 
   const actions = stepsEditOpen
     ? `<button class="primary" id="steps-save">Save</button>
@@ -606,14 +609,15 @@ function renderControlsPanel() {
 
 function renderWaterPanel() {
   const w = entry.waterOz ?? 0;
-  const wpct = Math.min(100, Math.round((w / 140) * 100));
+  const wGoal = goals.water_oz;
+  const wpct = Math.min(100, Math.round((w / wGoal) * 100));
   return `
     <div class="ctrl-row water">
       <div class="ctrl-icon">💧</div>
       <div class="ctrl-body">
         <div class="ctrl-line">
           <span class="ctrl-label">Water</span>
-          <span class="ctrl-time">${w} <span class="ctrl-sub">/ 140 oz · ${wpct}%${w >= 140 ? ' ✓' : ''}</span></span>
+          <span class="ctrl-time">${w} <span class="ctrl-sub">/ ${wGoal} oz · ${wpct}%${w >= wGoal ? ' ✓' : ''}</span></span>
         </div>
         <div class="ctrl-bar"><span style="width:${wpct}%"></span></div>
         <div class="ctrl-actions">
@@ -838,11 +842,16 @@ document.addEventListener("input", (ev) => {
 
 function show() {
   const root = document.getElementById("app");
-  if (view === "settings") {
+  if (view === "goals") {
+    document.getElementById("title").textContent = "Edit goals";
+    document.getElementById("stat").textContent = "Changes save automatically";
+    renderGoals(root, storage, () => { refreshGoals(); view = "settings"; show(); });
+  } else if (view === "settings") {
     document.getElementById("title").textContent = "Edit checklist";
     document.getElementById("stat").textContent = "Changes save automatically";
     renderSettings(root, storage, items, (newItems, action) => {
       if (action === "back") { view = "main"; show(); return; }
+      if (action === "goals") { view = "goals"; show(); return; }
       const merged = mergeIntoEntry(entry, items);
       Object.assign(entry, merged);
       persist();
@@ -888,5 +897,6 @@ window.__wellness_computeScores = computeScores;
 window.__wellness_macroTotals = macroTotals;
 window.__wellness_totalFastedHoursToday = totalFastedHoursToday;
 window.__wellness_totalFastedHoursForEntry = totalFastedHoursForEntry;
+window.__wellness_goals = () => goals;
 
 show();
