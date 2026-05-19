@@ -348,6 +348,38 @@ it("Backup.restore returns null when no prior write", async () => {
   eq(r, null);
 });
 
+it("Storage with backup wired calls backup.queue on saveEntry", () => {
+  let captured = null;
+  const fakeBackup = { queue: (snap) => { captured = snap; }, flush(){}, restore: async () => null, close(){} };
+  localStorage.clear();
+  const s = Storage(localStorage, fakeBackup);
+  s.saveEntry("2026-05-10", { date: "2026-05-10", items: {}, savedAt: "x" });
+  if (!captured) throw new Error("backup.queue was not called");
+  eq(captured.entries["2026-05-10"].savedAt, "x", "snapshot reflects the just-saved entry");
+});
+
+it("Storage with backup wired calls backup.queue on saveItems and saveActiveFast", () => {
+  const seen = [];
+  const fakeBackup = { queue: (s) => seen.push(s), flush(){}, restore: async () => null, close(){} };
+  localStorage.clear();
+  const s = Storage(localStorage, fakeBackup);
+  s.saveItems({ items: [{ id: "a" }] });
+  s.saveActiveFast({ startMs: 1 });
+  eq(seen.length, 2);
+  eq(seen[0].items.items[0].id, "a");
+  eq(seen[1].activeFast.startMs, 1);
+});
+
+it("Storage with backup wired calls backup.queue on replaceEntries", () => {
+  let captured = null;
+  const fakeBackup = { queue: (s) => { captured = s; }, flush(){}, restore: async () => null, close(){} };
+  localStorage.clear();
+  const s = Storage(localStorage, fakeBackup);
+  s.replaceEntries({ "2026-05-11": { date: "2026-05-11", items: {}, savedAt: "z" } });
+  if (!captured) throw new Error("backup.queue was not called");
+  eq(captured.entries["2026-05-11"].savedAt, "z");
+});
+
 it("Backup.restore returns the snapshot after queue + flush", async () => {
   const idb = makeFakeIdb();
   const clock = makeFakeClock();
