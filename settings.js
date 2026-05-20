@@ -1,15 +1,93 @@
 import { defaultItems, nextOrder } from "./items.js";
-import { DEFAULT_GOALS, loadGoals, saveGoals } from "./goals.js";
+import { DEFAULT_GOALS, loadGoals, saveGoals, loadMealDefaults, saveMealDefaults } from "./goals.js";
+
+export function renderMealDefaults(root, storage, items, onBack) {
+  const controller = new AbortController();
+  const { signal } = controller;
+  let mealDefaults = loadMealDefaults(storage);
+  const macroItems = (items.items || []).filter(it => it.macros).sort((a,b) => (a.order ?? 0) - (b.order ?? 0));
+
+  function paint() {
+    root.innerHTML = `<a href="#" class="back" id="back-link">← Back</a>`;
+    const wrap = document.createElement("div");
+    wrap.className = "settings goals";
+
+    const intro = document.createElement("p");
+    intro.style.color = "var(--muted)";
+    intro.style.fontSize = "13px";
+    intro.style.margin = "0 0 12px";
+    intro.textContent = "Set typical macros per meal. When you check a meal, empty macros auto-fill from these. You can still edit on top.";
+    wrap.appendChild(intro);
+
+    if (macroItems.length === 0) {
+      const empty = document.createElement("p");
+      empty.style.color = "var(--muted)";
+      empty.textContent = "No meals with macros enabled. Enable macros on items in Settings first.";
+      wrap.appendChild(empty);
+      root.appendChild(wrap);
+      return;
+    }
+
+    for (const it of macroItems) {
+      const m = mealDefaults[it.id] || { kcal: "", p: "", fi: "", fa: "", c: "", su: "" };
+      const card = document.createElement("div");
+      card.className = "meal-default-card";
+      card.dataset.id = it.id;
+      card.innerHTML = `
+        <div class="meal-default-name">${it.label}</div>
+        <div class="meal-default-grid">
+          <label>Cal <input type="number" min="0" inputmode="numeric" data-md-mac="kcal" value="${m.kcal || ""}"></label>
+          <label>P <input type="number" min="0" inputmode="numeric" data-md-mac="p" value="${m.p || ""}"></label>
+          <label>Fi <input type="number" min="0" inputmode="numeric" data-md-mac="fi" value="${m.fi || ""}"></label>
+          <label>Fa <input type="number" min="0" inputmode="numeric" data-md-mac="fa" value="${m.fa || ""}"></label>
+          <label>NetC <input type="number" min="0" inputmode="numeric" data-md-mac="c" value="${m.c || ""}"></label>
+          <label>Su <input type="number" min="0" inputmode="numeric" data-md-mac="su" value="${m.su || ""}"></label>
+        </div>
+      `;
+      wrap.appendChild(card);
+    }
+
+    const clear = document.createElement("button");
+    clear.className = "reset";
+    clear.id = "clear-meal-defaults-btn";
+    clear.textContent = "Clear all defaults";
+    wrap.appendChild(clear);
+
+    root.appendChild(wrap);
+  }
+
+  root.addEventListener("click", (ev) => {
+    if (ev.target.id === "back-link") { ev.preventDefault(); controller.abort(); onBack(); return; }
+    if (ev.target.id === "clear-meal-defaults-btn") {
+      if (!confirm("Clear all meal defaults?")) return;
+      mealDefaults = saveMealDefaults(storage, {});
+      paint();
+    }
+  }, { signal });
+
+  root.addEventListener("change", (ev) => {
+    if (ev.target.matches('input[data-md-mac]')) {
+      const card = ev.target.closest(".meal-default-card");
+      if (!card) return;
+      const id = card.dataset.id;
+      const key = ev.target.dataset.mdMac;
+      const cur = mealDefaults[id] || { kcal: 0, p: 0, fi: 0, fa: 0, c: 0, su: 0 };
+      mealDefaults = saveMealDefaults(storage, { ...mealDefaults, [id]: { ...cur, [key]: ev.target.value } });
+    }
+  }, { signal });
+
+  paint();
+}
 
 const GOAL_FIELDS = [
-  { key: "water_oz",    label: "Water",     unit: "oz",  hint: "daily intake target" },
-  { key: "steps",       label: "Steps",     unit: "",    hint: "daily walking goal" },
-  { key: "kcal",        label: "Calories",  unit: "kcal", hint: "daily intake target" },
-  { key: "protein_g",   label: "Protein",   unit: "g",   hint: "daily minimum" },
-  { key: "fiber_g",     label: "Fiber",     unit: "g",   hint: "daily minimum" },
-  { key: "fats_g",      label: "Fats",      unit: "g",   hint: "daily target" },
-  { key: "net_carbs_g", label: "Net Carbs", unit: "g",   hint: "daily target" },
-  { key: "sugar_max_g", label: "Sugar",     unit: "g",   hint: "daily maximum (warning)" },
+  { key: "water_oz",    label: "Water",     unit: "oz",   hint: "daily intake target",   nutrient: false },
+  { key: "steps",       label: "Steps",     unit: "",     hint: "daily walking goal",    nutrient: false },
+  { key: "kcal",        label: "Calories",  unit: "kcal", hint: "daily intake target",   nutrient: true },
+  { key: "protein_g",   label: "Protein",   unit: "g",    hint: "daily minimum",         nutrient: true },
+  { key: "fiber_g",     label: "Fiber",     unit: "g",    hint: "daily minimum",         nutrient: true },
+  { key: "fats_g",      label: "Fats",      unit: "g",    hint: "daily target",          nutrient: true },
+  { key: "net_carbs_g", label: "Net Carbs", unit: "g",    hint: "daily target",          nutrient: true },
+  { key: "sugar_max_g", label: "Sugar",     unit: "g",    hint: "daily maximum (warning)", nutrient: true },
 ];
 
 export function renderGoals(root, storage, onBack) {
@@ -29,9 +107,23 @@ export function renderGoals(root, storage, onBack) {
     intro.textContent = "Set your daily targets. Saved automatically.";
     wrap.appendChild(intro);
 
+    const toggleRow = document.createElement("div");
+    toggleRow.className = "item goal-row";
+    toggleRow.style.borderTop = "0";
+    toggleRow.innerHTML = `
+      <label style="flex:1; font-weight:500;">Track nutrients<br><small style="color:var(--muted); font-weight:400;">Show nutrient ring on Home and macro inputs in Log</small></label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="track-nutrients-toggle" ${goals.track_nutrients !== false ? "checked" : ""} />
+        <span class="toggle-slider"></span>
+      </label>
+    `;
+    wrap.appendChild(toggleRow);
+
     const list = document.createElement("div");
     list.className = "flat-list";
+    const trackNut = goals.track_nutrients !== false;
     for (const f of GOAL_FIELDS) {
+      if (f.nutrient && !trackNut) continue;
       const row = document.createElement("div");
       row.className = "item goal-row";
       row.innerHTML = `
@@ -62,6 +154,11 @@ export function renderGoals(root, storage, onBack) {
   }, { signal });
 
   root.addEventListener("change", (ev) => {
+    if (ev.target.id === "track-nutrients-toggle") {
+      goals = saveGoals(storage, { ...goals, track_nutrients: ev.target.checked });
+      paint();
+      return;
+    }
     if (ev.target.matches('.goal-row input[type="number"]')) {
       const key = ev.target.dataset.key;
       goals = saveGoals(storage, { ...goals, [key]: ev.target.value });
@@ -126,6 +223,12 @@ export function renderSettings(root, storage, items, onChange, backup) {
     goalsLink.textContent = "Edit goals →";
     wrap.appendChild(goalsLink);
 
+    const mealDefaultsLink = document.createElement("button");
+    mealDefaultsLink.className = "reset";
+    mealDefaultsLink.id = "edit-meal-defaults-btn";
+    mealDefaultsLink.textContent = "Meal defaults →";
+    wrap.appendChild(mealDefaultsLink);
+
     const reset = document.createElement("button");
     reset.className = "reset";
     reset.id = "reset-btn";
@@ -166,6 +269,11 @@ export function renderSettings(root, storage, items, onChange, backup) {
     if (ev.target.id === "edit-goals-btn") {
       controller.abort();
       onChange(items, "goals");
+      return;
+    }
+    if (ev.target.id === "edit-meal-defaults-btn") {
+      controller.abort();
+      onChange(items, "meal-defaults");
       return;
     }
     if (ev.target.id === "add-btn") {

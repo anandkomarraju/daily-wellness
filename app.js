@@ -1,9 +1,9 @@
 import { Storage } from "./storage.js";
 import { Backup } from "./backup.js";
 import { ensureItems, ICONS } from "./items.js";
-import { loadGoals } from "./goals.js";
+import { loadGoals, loadMealDefaults } from "./goals.js";
 import { todayKey, blankEntry, mergeIntoEntry, countDone } from "./entry.js";
-import { renderSettings, renderGoals } from "./settings.js";
+import { renderSettings, renderGoals, renderMealDefaults } from "./settings.js";
 import { renderHistory } from "./history.js";
 
 // Expose helpers used by history.js timeline view (so it can compute past-day scores)
@@ -30,7 +30,8 @@ window.addEventListener("visibilitychange", () => {
 });
 const items = ensureItems(storage);
 let goals = loadGoals(storage);
-function refreshGoals() { goals = loadGoals(storage); }
+let mealDefaults = loadMealDefaults(storage);
+function refreshGoals() { goals = loadGoals(storage); mealDefaults = loadMealDefaults(storage); }
 
 const date = todayKey();
 const existing = storage.getEntry(date);
@@ -331,16 +332,19 @@ function computeScores(e = entry, dateKey = date) {
   const otherDone = otherIds.filter(id => eItems[id]?.checked).length;
   const otherFrac = otherTotal > 0 ? otherDone / otherTotal : 0;
 
-  // Overall = weighted sum
-  const overall = Math.round((
+  // Overall = weighted sum. When nutrients are disabled, drop the 0.10 nutrients
+  // weight and rescale so the score still tops out at 100.
+  const trackNut = goals.track_nutrients !== false;
+  const sumWeighted =
     fastFrac * 0.10 +
     waterFrac * 0.10 +
     stepsFrac * 0.10 +
-    nutFrac * 0.10 +
+    (trackNut ? nutFrac * 0.10 : 0) +
     recoveryDone * 0.10 +
     strengthDone * 0.10 +
-    otherFrac * 0.40
-  ) * 100);
+    otherFrac * 0.40;
+  const totalWeight = trackNut ? 1.0 : 0.90;
+  const overall = Math.round((sumWeighted / totalWeight) * 100);
 
   // Routine sub-score combines recovery + strength + other proportionally to their weights
   // (10 + 10 + 40 = 60 → renormalize to 0..1)
@@ -486,12 +490,14 @@ function renderToday() {
   controls.innerHTML = renderControlsPanel();
   root.appendChild(controls);
 
-  // Nutrient rings (moved from Tracking)
-  const nutWrap = document.createElement("section");
-  nutWrap.className = "nutrients-block";
-  nutWrap.id = "macros-block";
-  nutWrap.innerHTML = renderNutrientRings(macroTotals());
-  root.appendChild(nutWrap);
+  // Nutrient rings (skipped when track_nutrients is off)
+  if (goals.track_nutrients !== false) {
+    const nutWrap = document.createElement("section");
+    nutWrap.className = "nutrients-block";
+    nutWrap.id = "macros-block";
+    nutWrap.innerHTML = renderNutrientRings(macroTotals());
+    root.appendChild(nutWrap);
+  }
 
   startTicker();
 }
@@ -674,7 +680,7 @@ function renderTracking() {
         ${it.label}
         ${!cell.checked ? `<span class="note-toggle">+ note</span>` : ""}
         ${(!cell.checked && cell.comment) ? `<textarea>${escapeAttr(cell.comment)}</textarea>` : ""}
-        ${it.macros ? `
+        ${it.macros && goals.track_nutrients !== false ? `
           <div class="macros">
             <label>Cal <input type="number" min="0" inputmode="numeric" data-mac="kcal" value="${m.kcal ?? ""}"></label>
             <label>P <input type="number" min="0" inputmode="numeric" data-mac="p"  value="${m.p ?? ""}"></label>
@@ -705,6 +711,7 @@ function renderTracking() {
       <div class="label">
         ${escapeAttr(sn.label || "(snack)")}
         <button class="snack-del" data-snack-del="${sn.id}" title="Remove snack">✕</button>
+        ${goals.track_nutrients !== false ? `
         <div class="macros">
           <label>Cal <input type="number" min="0" inputmode="numeric" data-snack-mac="kcal" data-snack-id="${sn.id}" value="${m.kcal ?? ""}"></label>
           <label>P <input type="number" min="0" inputmode="numeric" data-snack-mac="p"  data-snack-id="${sn.id}" value="${m.p ?? ""}"></label>
@@ -713,6 +720,7 @@ function renderTracking() {
           <label>NetC <input type="number" min="0" inputmode="numeric" data-snack-mac="c"  data-snack-id="${sn.id}" value="${m.c ?? ""}"></label>
           <label class="${(Number(m.su)||0) > 15 ? 'sugar-warn' : ''}">Su <input type="number" min="0" inputmode="numeric" data-snack-mac="su" data-snack-id="${sn.id}" value="${m.su ?? ""}"></label>
         </div>
+        ` : ""}
       </div>
     `;
     sec.appendChild(row);
@@ -727,6 +735,7 @@ function renderTracking() {
       <div class="num">${nextNum}.</div>
       <div class="label">
         <input type="text" id="snack-label" placeholder="what I ate" class="snack-label-input" />
+        ${goals.track_nutrients !== false ? `
         <div class="macros">
           <label>Cal <input type="number" min="0" inputmode="numeric" id="snack-kcal" /></label>
           <label>P <input type="number" min="0" inputmode="numeric" id="snack-p" /></label>
@@ -735,6 +744,7 @@ function renderTracking() {
           <label>NetC <input type="number" min="0" inputmode="numeric" id="snack-c" /></label>
           <label>Su <input type="number" min="0" inputmode="numeric" id="snack-su" /></label>
         </div>
+        ` : ""}
         <div class="snack-form-actions">
           <button id="snack-save" class="snack-save-btn">Save</button>
           <button id="snack-toggle" class="snack-cancel-btn">Cancel</button>
@@ -760,7 +770,17 @@ document.addEventListener("change", (ev) => {
       const it = items.items.find(x => x.id === id);
       entry.items[id] = { label: it?.label ?? id, checked: false, comment: "" };
     }
+    const wasChecked = entry.items[id].checked;
     entry.items[id].checked = ev.target.checked;
+    // Auto-fill macros from defaults on first check, when nutrients tracked
+    if (!wasChecked && ev.target.checked && goals.track_nutrients !== false) {
+      const itemDef = items.items.find(x => x.id === id);
+      if (itemDef?.macros && mealDefaults[id]) {
+        const cur = entry.items[id].macros;
+        const isEmpty = !cur || Object.values(cur).every(v => !Number(v));
+        if (isEmpty) entry.items[id].macros = { ...mealDefaults[id] };
+      }
+    }
     if (id === "breakfast" && ev.target.checked && activeFast) {
       endFastAt(new Date());
     }
@@ -921,12 +941,17 @@ function show() {
     document.getElementById("title").textContent = "Edit goals";
     document.getElementById("stat").textContent = "Changes save automatically";
     renderGoals(root, storage, () => { refreshGoals(); view = "settings"; show(); });
+  } else if (view === "meal-defaults") {
+    document.getElementById("title").textContent = "Meal defaults";
+    document.getElementById("stat").textContent = "Changes save automatically";
+    renderMealDefaults(root, storage, items, () => { refreshGoals(); view = "settings"; show(); });
   } else if (view === "settings") {
     document.getElementById("title").textContent = "Edit checklist";
     document.getElementById("stat").textContent = "Changes save automatically";
     renderSettings(root, storage, items, (newItems, action) => {
       if (action === "back") { view = "main"; show(); return; }
       if (action === "goals") { view = "goals"; show(); return; }
+      if (action === "meal-defaults") { view = "meal-defaults"; show(); return; }
       const merged = mergeIntoEntry(entry, items);
       Object.assign(entry, merged);
       persist();

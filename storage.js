@@ -2,6 +2,7 @@ const ITEMS_KEY = "wellness:items";
 const ENTRIES_KEY = "wellness:entries";
 const ACTIVE_FAST_KEY = "wellness:activeFast";
 const GOALS_KEY = "wellness:goals";
+const MEAL_DEFAULTS_KEY = "wellness:mealDefaults";
 
 export function Storage(backend = localStorage, backup = null) {
   function readJSON(key, fallback) {
@@ -37,12 +38,15 @@ export function Storage(backend = localStorage, backup = null) {
     replaceEntries(entries) { writeJSON(ENTRIES_KEY, entries || {}); notifyBackup(); },
     getGoals() { return readJSON(GOALS_KEY, null); },
     saveGoals(g) { writeJSON(GOALS_KEY, g); notifyBackup(); },
+    getMealDefaults() { return readJSON(MEAL_DEFAULTS_KEY, null); },
+    saveMealDefaults(d) { writeJSON(MEAL_DEFAULTS_KEY, d); notifyBackup(); },
     exportAll() {
       return {
         items: readJSON(ITEMS_KEY, null),
         entries: readJSON(ENTRIES_KEY, {}),
         activeFast: readJSON(ACTIVE_FAST_KEY, null),
         goals: readJSON(GOALS_KEY, null),
+        mealDefaults: readJSON(MEAL_DEFAULTS_KEY, null),
       };
     },
   };

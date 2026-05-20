@@ -92,6 +92,24 @@
     .settings .goal-row label small { font-size: 12px; }
     .settings .goal-row input[type="number"] { padding: 8px; font: inherit; font-weight: 600;
       border: 1px solid var(--line); border-radius: 8px; font-variant-numeric: tabular-nums; }
+    .toggle-switch { position: relative; display: inline-block; width: 48px; height: 28px; flex: 0 0 auto; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; inset: 0; background: var(--line);
+      border-radius: 28px; transition: background 200ms; }
+    .toggle-slider::before { content: ""; position: absolute; height: 22px; width: 22px;
+      left: 3px; bottom: 3px; background: white; border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15); transition: transform 200ms; }
+    .toggle-switch input:checked + .toggle-slider { background: #4a9b6a; }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+    .meal-default-card { background: white; border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px 14px; margin-bottom: 10px; }
+    .meal-default-card .meal-default-name { font-weight: 600; margin-bottom: 8px; font-size: 14px; }
+    .meal-default-card .meal-default-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .meal-default-card .meal-default-grid label { display: flex; align-items: center; gap: 4px;
+      font-size: 12px; color: var(--muted); }
+    .meal-default-card .meal-default-grid input { width: 100%; min-width: 0; padding: 6px 8px;
+      border: 1px solid var(--line); border-radius: 6px; font: inherit; font-weight: 600;
+      font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; }
     .settings a.back { color: var(--muted); text-decoration: none; }
     .history h3 { font-size: 15px; margin: 16px 0 6px; }
     .history .day { padding: 12px 14px; background: white; border: 1px solid var(--line);
