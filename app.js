@@ -193,19 +193,20 @@ function setFastEnd(localStr) {
   persist();
   rerender();
 }
-// Total fasted hours for a given day (including a still-running fast that started on/before that day).
-// For TODAY: counts any still-active fast (using now() as a virtual end).
-// For PAST days: counts only completed fasts whose end-day matches.
+// Total fasted hours for a given day.
+// While a fast is ACTIVE: today's ring shows only this fast's elapsed time
+//   (each new fast resets the timer to zero — completed fasts of the day
+//   are recorded but not stacked under the active one).
+// When NO fast is active: ring shows the sum of completed fasts attributed to that day.
 function totalFastedHoursForEntry(e, dateKey) {
+  if (dateKey === date && activeFast) {
+    return Math.max(0, Date.now() - new Date(activeFast.startedAt).getTime()) / 3600000;
+  }
   let ms = 0;
   for (const f of (e?.completedFasts ?? [])) {
     if (f.startedAt && f.endedAt) {
       ms += Math.max(0, new Date(f.endedAt).getTime() - new Date(f.startedAt).getTime());
     }
-  }
-  // If this is TODAY and a fast is currently active, count its elapsed time.
-  if (dateKey === date && activeFast) {
-    ms += Math.max(0, Date.now() - new Date(activeFast.startedAt).getTime());
   }
   return ms / 3600000;
 }
