@@ -251,6 +251,16 @@ function macroTotals(e = entry) {
     su   += Number(m.su)   || 0;
     kcal += Number(m.kcal) || 0;
   }
+  for (const sn of (e?.snacks ?? [])) {
+    const m = sn.macros;
+    if (!m) continue;
+    p    += Number(m.p)    || 0;
+    fi   += Number(m.fi)   || 0;
+    fa   += Number(m.fa)   || 0;
+    c    += Number(m.c)    || 0;
+    su   += Number(m.su)   || 0;
+    kcal += Number(m.kcal) || 0;
+  }
   return { p, fi, fa, c, su, kcal };
 }
 
@@ -677,16 +687,67 @@ function renderTracking() {
     `;
     sec.appendChild(row);
   });
-  root.appendChild(sec);
 
-  // Snacks block at the bottom
-  const snacksWrap = document.createElement("section");
-  snacksWrap.className = "ordered snacks-section";
-  const snacksInner = document.createElement("div");
-  snacksInner.className = "snacks-block";
-  snacksInner.appendChild(renderSnacksBlock());
-  snacksWrap.appendChild(snacksInner);
-  root.appendChild(snacksWrap);
+  // Snack rows — appended after routine, styled like routine rows
+  const snacks = entry.snacks ?? [];
+  let nextNum = flat.length + 1;
+  for (const sn of snacks) {
+    const m = sn.macros ?? {};
+    const row = document.createElement("div");
+    row.className = "row snack-row";
+    row.dataset.snackId = sn.id;
+    row.dataset.checked = "true";
+    row.innerHTML = `
+      <input type="checkbox" checked disabled />
+      <span class="glyph">🍿</span>
+      <div class="num">${nextNum++}.</div>
+      <div class="label">
+        ${escapeAttr(sn.label || "(snack)")}
+        <button class="snack-del" data-snack-del="${sn.id}" title="Remove snack">✕</button>
+        <div class="macros">
+          <label>Cal <input type="number" min="0" inputmode="numeric" data-snack-mac="kcal" data-snack-id="${sn.id}" value="${m.kcal ?? ""}"></label>
+          <label>P <input type="number" min="0" inputmode="numeric" data-snack-mac="p"  data-snack-id="${sn.id}" value="${m.p ?? ""}"></label>
+          <label>Fi <input type="number" min="0" inputmode="numeric" data-snack-mac="fi" data-snack-id="${sn.id}" value="${m.fi ?? ""}"></label>
+          <label>Fa <input type="number" min="0" inputmode="numeric" data-snack-mac="fa" data-snack-id="${sn.id}" value="${m.fa ?? ""}"></label>
+          <label>NetC <input type="number" min="0" inputmode="numeric" data-snack-mac="c"  data-snack-id="${sn.id}" value="${m.c ?? ""}"></label>
+          <label class="${(Number(m.su)||0) > 15 ? 'sugar-warn' : ''}">Su <input type="number" min="0" inputmode="numeric" data-snack-mac="su" data-snack-id="${sn.id}" value="${m.su ?? ""}"></label>
+        </div>
+      </div>
+    `;
+    sec.appendChild(row);
+  }
+
+  // Add-snack form / button as the last row
+  const addRow = document.createElement("div");
+  addRow.className = "row snack-add-row";
+  if (snackFormOpen) {
+    addRow.innerHTML = `
+      <span class="glyph">🍿</span>
+      <div class="num">${nextNum}.</div>
+      <div class="label">
+        <input type="text" id="snack-label" placeholder="what I ate" class="snack-label-input" />
+        <div class="macros">
+          <label>Cal <input type="number" min="0" inputmode="numeric" id="snack-kcal" /></label>
+          <label>P <input type="number" min="0" inputmode="numeric" id="snack-p" /></label>
+          <label>Fi <input type="number" min="0" inputmode="numeric" id="snack-fi" /></label>
+          <label>Fa <input type="number" min="0" inputmode="numeric" id="snack-fa" /></label>
+          <label>NetC <input type="number" min="0" inputmode="numeric" id="snack-c" /></label>
+          <label>Su <input type="number" min="0" inputmode="numeric" id="snack-su" /></label>
+        </div>
+        <div class="snack-form-actions">
+          <button id="snack-save" class="snack-save-btn">Save</button>
+          <button id="snack-toggle" class="snack-cancel-btn">Cancel</button>
+        </div>
+      </div>
+    `;
+  } else {
+    addRow.innerHTML = `
+      <button id="snack-toggle" class="snack-add-btn">+ Add snack</button>
+    `;
+  }
+  sec.appendChild(addRow);
+
+  root.appendChild(sec);
 
   startTicker();
 }
@@ -820,6 +881,19 @@ document.addEventListener("input", (ev) => {
       }
       entry.items[id].comment = value;
       persist();
+    }, 250);
+  } else if (ev.target.matches('input[data-snack-mac]')) {
+    const snackId = ev.target.dataset.snackId;
+    const key = ev.target.dataset.snackMac;
+    const val = Number(ev.target.value) || 0;
+    const tkey = `snack:${snackId}:${key}`;
+    clearTimeout(typingTimers[tkey]);
+    typingTimers[tkey] = setTimeout(() => {
+      const sn = (entry.snacks ?? []).find(s => s.id === snackId);
+      if (!sn) return;
+      sn.macros = { ...(sn.macros ?? { p: 0, fi: 0, fa: 0, c: 0, su: 0, kcal: 0 }), [key]: val };
+      persist();
+      refreshMacrosBlock();
     }, 250);
   } else if (ev.target.matches('.row .macros input')) {
     const row = ev.target.closest(".row");
