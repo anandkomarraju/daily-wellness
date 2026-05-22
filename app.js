@@ -504,11 +504,10 @@ function renderSnacksBlock() {
 function renderToday() {
   const ve = getViewEntry();
   const viewing = isViewingToday();
-  const [vy, vm, vd] = viewDate.split("-").map(Number);
-  const titleDate = new Date(vy, vm - 1, vd);
-  document.getElementById("title").textContent = viewing ? fmtTitle(new Date()) : fmtTitle(titleDate);
-  const { done, total } = countDone(ve);
-  document.getElementById("stat").textContent = `${done} of ${total} tracked`;
+  // Hide the redundant header on Home — the date-nav pill and score card carry this info.
+  document.querySelector("header")?.classList.add("hidden");
+  document.getElementById("title").textContent = "";
+  document.getElementById("stat").textContent = "";
 
   const root = document.getElementById("app");
   root.innerHTML = "";
@@ -993,6 +992,7 @@ document.addEventListener("input", (ev) => {
 
 function show() {
   const root = document.getElementById("app");
+  document.querySelector("header")?.classList.remove("hidden");
   if (view === "goals") {
     document.getElementById("title").textContent = "Edit goals";
     document.getElementById("stat").textContent = "Changes save automatically";
