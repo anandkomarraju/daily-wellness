@@ -39,6 +39,24 @@ const baseExtras = { waterOz: 0, steps: 0, snacks: [], completedFasts: [], fastG
 const entry = existing
   ? { ...baseExtras, ...mergeIntoEntry(existing, items) }
   : { ...blankEntry(date, items), ...baseExtras };
+
+// Home page can view past dates; viewDate === date means "today" (live entry).
+let viewDate = date;
+function getViewEntry() {
+  if (viewDate === date) return entry;
+  const stored = storage.getEntry(viewDate);
+  if (!stored) return { ...blankEntry(viewDate, items), ...baseExtras };
+  return { ...baseExtras, ...mergeIntoEntry(stored, items) };
+}
+function isViewingToday() { return viewDate === date; }
+function shiftViewDate(deltaDays) {
+  const [y, m, d] = viewDate.split("-").map(Number);
+  const next = new Date(y, m - 1, d + deltaDays);
+  const ymd = `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}-${String(next.getDate()).padStart(2,"0")}`;
+  if (ymd > date) return; // never go beyond today
+  viewDate = ymd;
+  show();
+}
 // Ensure snacks is always an array (in case old entries have snacks: null)
 if (!Array.isArray(entry.snacks)) entry.snacks = [];
 if (!Array.isArray(entry.completedFasts)) entry.completedFasts = [];
@@ -94,6 +112,14 @@ function fmtTitle(d) {
   const months = ["January","February","March","April","May","June",
     "July","August","September","October","November","December"];
   return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
+}
+
+function shortDate(yyyyMmDd) {
+  const [y, m, d] = yyyyMmDd.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${days[dt.getDay()]} ${months[dt.getMonth()]} ${dt.getDate()}`;
 }
 
 function persist() { storage.saveEntry(date, { ...entry, savedAt: new Date().toISOString() }); }
@@ -371,11 +397,11 @@ function scoreTagline(score) {
   return `Let's start the day strong.`;
 }
 
-function paintHeroCard(root) {
+function paintHeroCard(root, e = entry, dateKey = date) {
   const hero = document.createElement("div");
   hero.className = "hero";
 
-  const scores = computeScores();
+  const scores = computeScores(e, dateKey);
   const overall = scores.overall;
   const status = overall >= 75 ? "met" : overall >= 50 ? "ok" : "low";
 
@@ -476,26 +502,42 @@ function renderSnacksBlock() {
 }
 
 function renderToday() {
-  document.getElementById("title").textContent = fmtTitle(new Date());
-  const { done, total } = countDone(entry);
+  const ve = getViewEntry();
+  const viewing = isViewingToday();
+  const [vy, vm, vd] = viewDate.split("-").map(Number);
+  const titleDate = new Date(vy, vm - 1, vd);
+  document.getElementById("title").textContent = viewing ? fmtTitle(new Date()) : fmtTitle(titleDate);
+  const { done, total } = countDone(ve);
   document.getElementById("stat").textContent = `${done} of ${total} tracked`;
 
   const root = document.getElementById("app");
   root.innerHTML = "";
-  paintHeroCard(root);
 
-  // Fasting + Steps rings (moved from Tracking)
+  // Date-nav row above hero
+  const nav = document.createElement("div");
+  nav.className = "date-nav";
+  nav.innerHTML = `
+    <button id="date-prev" class="date-arrow" aria-label="Previous day">‹</button>
+    <button id="date-picker-btn" class="date-label">${shortDate(viewDate)}</button>
+    <input type="date" id="date-picker" value="${viewDate}" max="${date}" />
+    <button id="date-next" class="date-arrow" aria-label="Next day" ${viewing ? "disabled" : ""}>›</button>
+  `;
+  root.appendChild(nav);
+
+  paintHeroCard(root, ve, viewDate);
+
+  // Fasting + Steps rings (read-only when viewing past date)
   const controls = document.createElement("section");
   controls.className = "controls-panel";
-  controls.innerHTML = renderControlsPanel();
+  controls.innerHTML = renderControlsPanel(ve, viewDate, viewing);
   root.appendChild(controls);
 
-  // Nutrient rings (skipped when track_nutrients is off)
+  // Nutrient rings
   if (goals.track_nutrients !== false) {
     const nutWrap = document.createElement("section");
     nutWrap.className = "nutrients-block";
     nutWrap.id = "macros-block";
-    nutWrap.innerHTML = renderNutrientRings(macroTotals());
+    nutWrap.innerHTML = renderNutrientRings(macroTotals(ve));
     root.appendChild(nutWrap);
   }
 
@@ -518,15 +560,15 @@ function bigRingSvg(p) {
   `;
 }
 
-function renderFastingRing() {
-  const goalH = entry.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
-  const totalH = totalFastedHoursToday();
+function renderFastingRing(e = entry, dateKey = date, interactive = true) {
+  const goalH = e.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
+  const totalH = totalFastedHoursForEntry(e, dateKey);
   const pct = Math.min(100, Math.round((totalH / goalH) * 100));
   const status = totalH >= goalH ? "met" : "unmet";
-  const isFasting = !!activeFast;
+  const isFasting = interactive && !!activeFast;
   const stage = isFasting ? currentFastStage(totalH) : null;
-  const completedCount = (entry.completedFasts ?? []).length;
-  const lastFast = completedCount > 0 ? entry.completedFasts[completedCount - 1] : null;
+  const completedCount = (e.completedFasts ?? []).length;
+  const lastFast = completedCount > 0 ? e.completedFasts[completedCount - 1] : null;
 
   const subline = isFasting
     ? `now · ${stage.name}`
@@ -541,7 +583,9 @@ function renderFastingRing() {
   `;
 
   let actions = "";
-  if (fastEditOpen) {
+  if (!interactive) {
+    actions = "";
+  } else if (fastEditOpen) {
     actions = `
       <input type="datetime-local" id="fast-start-input" value="${toLocalDatetimeInput(new Date((activeFast && activeFast.startedAt) || (lastFast && lastFast.startedAt) || Date.now()))}" />
       <button class="primary" id="fast-start-save">Save</button>
@@ -582,23 +626,23 @@ function renderFastingRing() {
   `;
 }
 
-function renderStepsRing() {
-  const s = entry.steps ?? 0;
+function renderStepsRing(e = entry, interactive = true) {
+  const s = e.steps ?? 0;
   const goal = goals.steps;
   const p = Math.min(100, Math.round((s / goal) * 100));
   const status = s >= goal ? "met" : "unmet";
   const display = s >= 1000 ? `${(s/1000).toFixed(1)}` : `${s}`;
   const unit = s >= 1000 ? "k" : "";
 
-  const centerHtml = stepsEditOpen
+  const centerHtml = (interactive && stepsEditOpen)
     ? `<input type="number" min="0" inputmode="numeric" id="steps-input" value="${s || ''}" placeholder="0" autofocus />`
     : `<div class="ring-center-num" data-status="${status}">${display}<span class="ring-unit">${unit}</span></div>
        <div class="ring-center-goal">/ ${goal >= 1000 ? (goal/1000).toFixed(goal % 1000 === 0 ? 0 : 1) + "k" : goal}</div>`;
 
-  const actions = stepsEditOpen
+  const actions = !interactive ? "" : (stepsEditOpen
     ? `<button class="primary" id="steps-save">Save</button>
        <button class="ghost" id="steps-cancel">Cancel</button>`
-    : `<button class="ghost small" id="steps-emoji-edit">edit</button>`;
+    : `<button class="ghost small" id="steps-emoji-edit">edit</button>`);
 
   return `
     <div class="big-ring-card" data-status="${status}">
@@ -614,12 +658,11 @@ function renderStepsRing() {
   `;
 }
 
-function renderControlsPanel() {
-  // Two big rings side-by-side at the top: Fasting + Steps
+function renderControlsPanel(e = entry, dateKey = date, interactive = true) {
   return `
     <div class="rings-pair">
-      ${renderFastingRing()}
-      ${renderStepsRing()}
+      ${renderFastingRing(e, dateKey, interactive)}
+      ${renderStepsRing(e, interactive)}
     </div>
   `;
 }
@@ -764,6 +807,11 @@ function renderTracking() {
 }
 
 document.addEventListener("change", (ev) => {
+  if (ev.target.id === "date-picker") {
+    const v = ev.target.value;
+    if (v && v <= date) { viewDate = v; show(); }
+    return;
+  }
   if (ev.target.matches('.row input[type="checkbox"]')) {
     const id = ev.target.closest(".row").dataset.id;
     if (!entry.items[id]) {
@@ -795,6 +843,14 @@ document.addEventListener("change", (ev) => {
 });
 
 document.addEventListener("click", (ev) => {
+  if (ev.target.id === "date-prev") { shiftViewDate(-1); return; }
+  if (ev.target.id === "date-next") { shiftViewDate(1); return; }
+  if (ev.target.id === "date-picker-btn") {
+    const inp = document.getElementById("date-picker");
+    if (inp && typeof inp.showPicker === "function") inp.showPicker();
+    else if (inp) inp.click();
+    return;
+  }
   if (ev.target.matches(".note-toggle")) {
     const row = ev.target.closest(".row");
     if (!row.querySelector("textarea")) {
@@ -970,6 +1026,7 @@ function show() {
 document.getElementById("link-today").addEventListener("click", (ev) => {
   ev.preventDefault();
   view = "main";
+  viewDate = date;
   show();
 });
 document.getElementById("link-tracking").addEventListener("click", (ev) => {

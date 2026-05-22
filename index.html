@@ -176,6 +176,18 @@
       border: 1px solid var(--line); background: white; color: var(--muted); cursor: pointer; }
     .settings .flat-list .macros-chip.on { background: var(--fg); color: white; border-color: var(--fg); }
 
+    /* Date navigation row above the score card on Home */
+    .date-nav { display: flex; align-items: center; justify-content: center;
+      gap: 8px; padding: 6px 0 4px; position: relative; }
+    .date-nav .date-arrow { width: 36px; height: 36px; border-radius: 50%;
+      border: 1px solid var(--line); background: white; color: var(--fg);
+      font-size: 22px; line-height: 1; cursor: pointer; padding: 0; }
+    .date-nav .date-arrow:disabled { opacity: 0.35; cursor: default; }
+    .date-nav .date-label { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line);
+      background: white; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .date-nav input[type="date"] { position: absolute; opacity: 0; pointer-events: none;
+      width: 1px; height: 1px; }
+
     /* === SCORE CARD (light / inline) === */
     .hero {
       background: white; border: 1px solid var(--line); border-radius: 16px;
