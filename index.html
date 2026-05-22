@@ -179,15 +179,19 @@
 
     /* Date navigation row above the score card on Home */
     .date-nav { display: flex; align-items: center; justify-content: center;
-      gap: 8px; padding: 6px 0 4px; position: relative; }
+      gap: 8px; padding: 6px 0 4px; }
     .date-nav .date-arrow { width: 36px; height: 36px; border-radius: 50%;
       border: 1px solid var(--line); background: white; color: var(--fg);
       font-size: 22px; line-height: 1; cursor: pointer; padding: 0; }
     .date-nav .date-arrow:disabled { opacity: 0.35; cursor: default; }
-    .date-nav .date-label { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line);
-      background: white; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
-    .date-nav input[type="date"] { position: absolute; opacity: 0; pointer-events: none;
-      width: 1px; height: 1px; }
+    .date-nav .date-label-wrap { position: relative; display: inline-flex;
+      align-items: center; padding: 6px 12px; border-radius: 999px;
+      border: 1px solid var(--line); background: white; cursor: pointer;
+      font: inherit; font-size: 14px; font-weight: 600; }
+    .date-nav .date-label-wrap input[type="date"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+      border: 0; padding: 0; margin: 0; font: inherit;
+      width: 100%; height: 100%; }
 
     /* === SCORE CARD (light / inline) === */
     .hero {

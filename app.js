@@ -517,8 +517,10 @@ function renderToday() {
   nav.className = "date-nav";
   nav.innerHTML = `
     <button id="date-prev" class="date-arrow" aria-label="Previous day">‹</button>
-    <button id="date-picker-btn" class="date-label">${shortDate(viewDate)}</button>
-    <input type="date" id="date-picker" value="${viewDate}" max="${date}" />
+    <label class="date-label-wrap">
+      <span class="date-label-text">${shortDate(viewDate)}</span>
+      <input type="date" id="date-picker" value="${viewDate}" max="${date}" />
+    </label>
     <button id="date-next" class="date-arrow" aria-label="Next day" ${viewing ? "disabled" : ""}>›</button>
   `;
   root.appendChild(nav);
@@ -844,12 +846,6 @@ document.addEventListener("change", (ev) => {
 document.addEventListener("click", (ev) => {
   if (ev.target.id === "date-prev") { shiftViewDate(-1); return; }
   if (ev.target.id === "date-next") { shiftViewDate(1); return; }
-  if (ev.target.id === "date-picker-btn") {
-    const inp = document.getElementById("date-picker");
-    if (inp && typeof inp.showPicker === "function") inp.showPicker();
-    else if (inp) inp.click();
-    return;
-  }
   if (ev.target.matches(".note-toggle")) {
     const row = ev.target.closest(".row");
     if (!row.querySelector("textarea")) {
