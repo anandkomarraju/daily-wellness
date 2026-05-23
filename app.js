@@ -527,6 +527,25 @@ function renderToday() {
 
   paintHeroCard(root, ve, viewDate);
 
+  // Sleep display (shown when sleep data exists)
+  const sleepH = ve.sleepHours ?? 0;
+  if (sleepH > 0) {
+    const sleepEl = document.createElement("div");
+    sleepEl.className = "sleep-block";
+    const sleepGoal = 8;
+    const sleepPct = Math.min(100, Math.round((sleepH / sleepGoal) * 100));
+    const sleepStatus = sleepH >= 7 ? "met" : sleepH >= 5 ? "ok" : "unmet";
+    sleepEl.innerHTML = `
+      <span class="sleep-icon">🌙</span>
+      <div class="sleep-info">
+        <div class="sleep-value">${sleepH}<span class="sleep-unit">h</span></div>
+        <div class="sleep-target">sleep${sleepH >= 7 ? ' ✓' : sleepH >= 5 ? '' : ' — low'}</div>
+      </div>
+      <div class="sleep-bar"><span style="width:${sleepPct}%"></span></div>
+    `;
+    root.appendChild(sleepEl);
+  }
+
   // Fasting + Steps rings (read-only when viewing past date)
   const controls = document.createElement("section");
   controls.className = "controls-panel";

@@ -660,6 +660,24 @@
       box-shadow: 0 0 0 3px rgba(138,166,138,.25);
     }
 
+    /* sleep block */
+    .sleep-block { display: flex; align-items: center; gap: 12px;
+      padding: 14px 18px; border-radius: 14px;
+      background: linear-gradient(135deg, #eae4f4 0%, #ddd6ec 100%);
+      border: 1px solid rgba(120, 90, 170, 0.20);
+      margin: 10px 0 14px; }
+    .sleep-block .sleep-icon { font-size: 22px; }
+    .sleep-block .sleep-info { min-width: 70px; }
+    .sleep-block .sleep-value { font-size: 22px; font-weight: 700; color: #3d2a5c;
+      font-variant-numeric: tabular-nums; line-height: 1; }
+    .sleep-block .sleep-unit { font-size: 14px; font-weight: 500; color: #6b4f96; }
+    .sleep-block .sleep-target { font-size: 12px; color: #6b4f96; margin-top: 2px; font-weight: 500; }
+    .sleep-block .sleep-bar { flex: 1; height: 8px; background: rgba(120, 90, 170, 0.15);
+      border-radius: 999px; overflow: hidden; }
+    .sleep-block .sleep-bar > span { display: block; height: 100%; border-radius: 999px;
+      background: linear-gradient(90deg, #b89de0 0%, #7c5aaa 100%);
+      transition: width 300ms ease; }
+
     .save-bar { box-shadow: 0 -1px 2px rgba(0,0,0,.04); }
     .save-bar button { transition: transform 100ms ease; }
     .save-bar button:active { transform: scale(.98); }
