@@ -1052,4 +1052,57 @@ window.__wellness_totalFastedHoursToday = totalFastedHoursToday;
 window.__wellness_totalFastedHoursForEntry = totalFastedHoursForEntry;
 window.__wellness_goals = () => goals;
 
+// === URL Parameter Intake (for Apple Shortcuts integration) ===
+(function handleUrlParams() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.toString() === "") return;
+  let changed = false;
+
+  const stepsParam = params.get("steps");
+  if (stepsParam != null) {
+    const v = Math.round(Number(stepsParam));
+    if (v > 0) { entry.steps = v; changed = true; }
+  }
+
+  const sleepParam = params.get("sleep");
+  if (sleepParam != null) {
+    const v = parseFloat(sleepParam);
+    if (v > 0) { entry.sleepHours = Math.round(v * 10) / 10; changed = true; }
+  }
+
+  const waterParam = params.get("water");
+  if (waterParam != null) {
+    const v = Math.round(Number(waterParam));
+    if (v > 0) { entry.waterOz = (entry.waterOz ?? 0) + v; changed = true; }
+  }
+
+  const snackParam = params.get("snack");
+  if (snackParam != null && snackParam.trim()) {
+    const macros = {
+      p:  Number(params.get("p"))  || 0,
+      fi: Number(params.get("fi")) || 0,
+      fa: Number(params.get("fa")) || 0,
+      c:  Number(params.get("c"))  || 0,
+      su: Number(params.get("su")) || 0,
+      kcal: Number(params.get("kcal")) || 0,
+    };
+    if (!Array.isArray(entry.snacks)) entry.snacks = [];
+    entry.snacks.push({ id: newSnackId(), label: snackParam.trim(), macros, createdAt: new Date().toISOString() });
+    changed = true;
+  }
+
+  const fastParam = params.get("fast");
+  if (fastParam === "start" && !activeFast) {
+    activeFast = { startedAt: new Date().toISOString() };
+    storage.saveActiveFast(activeFast);
+    changed = true;
+  } else if (fastParam === "end" && activeFast) {
+    endFastAt(new Date());
+    changed = true;
+  }
+
+  if (changed) persist();
+  history.replaceState(null, "", location.pathname);
+})();
+
 show();
