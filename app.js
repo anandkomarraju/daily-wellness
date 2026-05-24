@@ -933,25 +933,29 @@ document.addEventListener("change", (ev) => {
 
 document.addEventListener("click", (ev) => {
   // Food picker interactions
-  if (ev.target.matches('[data-pick-for]')) {
+  if (ev.target.matches('.food-pick-btn[data-pick-for]')) {
+    ev.stopPropagation();
     const id = ev.target.dataset.pickFor;
     if (pickerOpenFor === id) { pickerOpenFor = null; } else { pickerOpenFor = id; pickerQuantities = {}; }
-    rerender();
+    renderTracking();
     return;
   }
-  if (ev.target.matches('.fp-plus')) {
+  if (ev.target.matches('.fp-plus[data-food-id]')) {
+    ev.stopPropagation();
     const fid = ev.target.dataset.foodId;
     pickerQuantities[fid] = (pickerQuantities[fid] ?? 0) + 1;
-    rerender();
+    renderTracking();
     return;
   }
-  if (ev.target.matches('.fp-minus')) {
+  if (ev.target.matches('.fp-minus[data-food-id]')) {
+    ev.stopPropagation();
     const fid = ev.target.dataset.foodId;
     pickerQuantities[fid] = Math.max(0, (pickerQuantities[fid] ?? 0) - 1);
-    rerender();
+    renderTracking();
     return;
   }
-  if (ev.target.matches('[data-picker-done]')) {
+  if (ev.target.matches('.fp-done[data-picker-done]')) {
+    ev.stopPropagation();
     applyFoodPicker(ev.target.dataset.pickerDone);
     return;
   }
