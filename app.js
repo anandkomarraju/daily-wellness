@@ -5,6 +5,7 @@ import { loadGoals, loadMealDefaults } from "./goals.js";
 import { todayKey, blankEntry, mergeIntoEntry, countDone } from "./entry.js";
 import { renderSettings, renderGoals, renderMealDefaults } from "./settings.js";
 import { renderHistory } from "./history.js";
+import { loadFoods } from "./foods.js";
 
 // Expose helpers used by history.js timeline view (so it can compute past-day scores)
 // Set lazily after the helper functions are defined below.
@@ -97,6 +98,8 @@ let snackFormOpen = false;
 let fastEditOpen = false;
 let fastEndEditOpen = false;
 let stepsEditOpen = false;
+let pickerOpenFor = null; // item id whose food picker is open
+let pickerQuantities = {}; // { foodId: quantity } for the open picker
 let view = "main";
 let tickerHandle = null;
 
@@ -710,6 +713,70 @@ function renderWaterPanel() {
   `;
 }
 
+function renderFoodPicker(itemId) {
+  const foods = loadFoods();
+  const qtys = pickerQuantities;
+  let rows = "";
+  for (const f of foods) {
+    const q = qtys[f.id] ?? 0;
+    rows += `
+      <div class="fp-row" data-food-id="${f.id}">
+        <div class="fp-info">
+          <div class="fp-name">${f.label}</div>
+          <div class="fp-macros">${f.kcal} cal · P${f.p} Fi${f.fi} Fa${f.fa} C${f.c}</div>
+        </div>
+        <div class="fp-stepper">
+          <button class="fp-minus" data-food-id="${f.id}" ${q === 0 ? "disabled" : ""}>−</button>
+          <span class="fp-qty">${q}</span>
+          <button class="fp-plus" data-food-id="${f.id}">+</button>
+        </div>
+      </div>
+    `;
+  }
+  return `
+    <div class="food-picker" data-picker-for="${itemId}">
+      <div class="fp-header">
+        <span>Pick foods</span>
+        <button class="fp-done" data-picker-done="${itemId}">Done</button>
+      </div>
+      <div class="fp-list">${rows}</div>
+    </div>
+  `;
+}
+
+function applyFoodPicker(itemId) {
+  const foods = loadFoods();
+  const qtys = pickerQuantities;
+  let kcal = 0, p = 0, fi = 0, fa = 0, c = 0, su = 0;
+  for (const f of foods) {
+    const q = qtys[f.id] ?? 0;
+    if (q <= 0) continue;
+    kcal += f.kcal * q;
+    p    += f.p * q;
+    fi   += f.fi * q;
+    fa   += f.fa * q;
+    c    += f.c * q;
+    su   += f.su * q;
+  }
+  if (!entry.items[itemId]) {
+    const it = items.items.find(x => x.id === itemId);
+    entry.items[itemId] = { label: it?.label ?? itemId, checked: false, comment: "" };
+  }
+  const existing = entry.items[itemId].macros ?? { kcal: 0, p: 0, fi: 0, fa: 0, c: 0, su: 0 };
+  entry.items[itemId].macros = {
+    kcal: Math.round((Number(existing.kcal) || 0) + kcal),
+    p:    Math.round(((Number(existing.p) || 0) + p) * 10) / 10,
+    fi:   Math.round(((Number(existing.fi) || 0) + fi) * 10) / 10,
+    fa:   Math.round(((Number(existing.fa) || 0) + fa) * 10) / 10,
+    c:    Math.round(((Number(existing.c) || 0) + c) * 10) / 10,
+    su:   Math.round(((Number(existing.su) || 0) + su) * 10) / 10,
+  };
+  pickerOpenFor = null;
+  pickerQuantities = {};
+  persist();
+  rerender();
+}
+
 function renderTracking() {
   document.getElementById("title").textContent = "Log";
   const { done, total } = countDone(entry);
@@ -745,6 +812,7 @@ function renderTracking() {
         ${(!cell.checked && cell.comment) ? `<textarea>${escapeAttr(cell.comment)}</textarea>` : ""}
         ${it.macros && goals.track_nutrients !== false ? `
           <div class="macros">
+            <button class="food-pick-btn" data-pick-for="${it.id}">📋</button>
             <label>Cal <input type="number" min="0" inputmode="numeric" data-mac="kcal" value="${m.kcal ?? ""}"></label>
             <label>P <input type="number" min="0" inputmode="numeric" data-mac="p"  value="${m.p ?? ""}"></label>
             <label>Fi <input type="number" min="0" inputmode="numeric" data-mac="fi" value="${m.fi ?? ""}"></label>
@@ -752,6 +820,7 @@ function renderTracking() {
             <label>NetC <input type="number" min="0" inputmode="numeric" data-mac="c"  value="${m.c ?? ""}"></label>
             <label class="${(Number(m.su)||0) > 15 ? 'sugar-warn' : ''}">Su <input type="number" min="0" inputmode="numeric" data-mac="su" value="${m.su ?? ""}"></label>
           </div>
+          ${pickerOpenFor === it.id ? renderFoodPicker(it.id) : ""}
         ` : ""}
       </div>
     `;
@@ -863,6 +932,29 @@ document.addEventListener("change", (ev) => {
 });
 
 document.addEventListener("click", (ev) => {
+  // Food picker interactions
+  if (ev.target.matches('[data-pick-for]')) {
+    const id = ev.target.dataset.pickFor;
+    if (pickerOpenFor === id) { pickerOpenFor = null; } else { pickerOpenFor = id; pickerQuantities = {}; }
+    rerender();
+    return;
+  }
+  if (ev.target.matches('.fp-plus')) {
+    const fid = ev.target.dataset.foodId;
+    pickerQuantities[fid] = (pickerQuantities[fid] ?? 0) + 1;
+    rerender();
+    return;
+  }
+  if (ev.target.matches('.fp-minus')) {
+    const fid = ev.target.dataset.foodId;
+    pickerQuantities[fid] = Math.max(0, (pickerQuantities[fid] ?? 0) - 1);
+    rerender();
+    return;
+  }
+  if (ev.target.matches('[data-picker-done]')) {
+    applyFoodPicker(ev.target.dataset.pickerDone);
+    return;
+  }
   if (ev.target.id === "date-prev") { shiftViewDate(-1); return; }
   if (ev.target.id === "date-next") { shiftViewDate(1); return; }
   if (ev.target.matches(".note-toggle")) {

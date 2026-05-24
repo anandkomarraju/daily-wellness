@@ -682,6 +682,38 @@
       background: rgba(176, 74, 122, 0.08); color: #b04a7a; font-weight: 600; }
     .hero .snack-chip .chip-mac .sugar-flag { color: #b04a7a; font-weight: 700; }
 
+    /* Food picker button in macro rows */
+    .food-pick-btn { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line);
+      background: white; cursor: pointer; font-size: 14px; line-height: 1;
+      transition: transform 100ms ease; flex: 0 0 auto; }
+    .food-pick-btn:active { transform: scale(.94); }
+
+    /* Food picker panel */
+    .food-picker { margin-top: 8px; padding: 10px; background: #fafaf6;
+      border: 1px solid var(--line); border-radius: 12px;
+      animation: panel-in 200ms ease; }
+    .food-picker .fp-header { display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px; }
+    .food-picker .fp-header span { font-size: 13px; font-weight: 600; color: var(--fg); }
+    .food-picker .fp-done { padding: 6px 14px; border-radius: 999px; border: 0;
+      background: var(--fg); color: white; font: inherit; font-weight: 600;
+      font-size: 13px; cursor: pointer; }
+    .food-picker .fp-list { max-height: 280px; overflow-y: auto; }
+    .food-picker .fp-row { display: flex; align-items: center; gap: 8px;
+      padding: 8px 0; border-top: 1px solid var(--line); }
+    .food-picker .fp-row:first-child { border-top: 0; }
+    .food-picker .fp-info { flex: 1; min-width: 0; }
+    .food-picker .fp-name { font-size: 13px; font-weight: 500; color: var(--fg); }
+    .food-picker .fp-macros { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .food-picker .fp-stepper { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+    .food-picker .fp-stepper button { width: 28px; height: 28px; border-radius: 50%;
+      border: 1px solid var(--line); background: white; font-size: 16px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .food-picker .fp-stepper button:disabled { opacity: 0.3; cursor: default; }
+    .food-picker .fp-stepper button:active:not(:disabled) { background: var(--line); }
+    .food-picker .fp-qty { font-size: 14px; font-weight: 700; min-width: 18px;
+      text-align: center; font-variant-numeric: tabular-nums; }
+
     /* focus rings */
     .hero input:focus, .hero button:focus,
     .row textarea:focus, .row .macros input:focus,
