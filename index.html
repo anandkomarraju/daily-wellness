@@ -120,43 +120,35 @@
     .history .day li.miss { color: var(--muted); }
     .history .day li .why { color: var(--muted); font-size: 13px; }
 
-    /* Trends section */
-    .trends-section { margin-bottom: 20px; }
-    .trends-header { font-size: 16px; font-weight: 700; color: var(--fg); margin-bottom: 2px; }
-    .trends-sub { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
-    .trend-card { display: flex; align-items: center; gap: 12px;
-      padding: 14px 16px; background: white; border: 1px solid var(--line);
-      border-radius: 12px; margin-bottom: 8px; }
-    .trend-card .trend-icon { font-size: 20px; flex: 0 0 auto; }
-    .trend-card .trend-body { flex: 1; min-width: 0; }
-    .trend-card .trend-label { font-size: 12px; color: var(--muted); letter-spacing: 0.04em;
-      text-transform: uppercase; font-weight: 600; }
-    .trend-card .trend-value { font-size: 22px; font-weight: 700; color: var(--fg);
-      font-variant-numeric: tabular-nums; line-height: 1.2; }
-    .trend-card .trend-unit { font-size: 13px; color: var(--muted); font-weight: 500; }
-    .trend-card .trend-dir { display: flex; flex-direction: column; align-items: center;
-      padding: 6px 10px; border-radius: 10px; min-width: 50px; }
-    .trend-card .trend-dir.positive { background: rgba(74, 155, 106, 0.10); }
-    .trend-card .trend-dir.negative { background: rgba(181, 78, 58, 0.10); }
-    .trend-card .trend-dir.neutral { background: rgba(0, 0, 0, 0.04); }
-    .trend-card .trend-arrow { font-size: 18px; font-weight: 700; line-height: 1; }
-    .trend-card .trend-dir.positive .trend-arrow { color: #2d7a4d; }
-    .trend-card .trend-dir.negative .trend-arrow { color: #b54e3a; }
-    .trend-card .trend-dir.neutral .trend-arrow { color: var(--muted); }
-    .trend-card .trend-diff { font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+    /* Metric cards (Heart Rate style) */
+    .metric-cards { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+    .metric-card { background: #1c1c1e; border-radius: 16px; padding: 16px 18px;
+      color: white; }
+    .metric-card .mc-top { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+    .metric-card .mc-icon { font-size: 16px; }
+    .metric-card .mc-label { font-size: 14px; font-weight: 600; }
+    .metric-card .mc-body { display: flex; align-items: flex-end; justify-content: space-between; }
+    .metric-card .mc-left { display: flex; flex-direction: column; }
+    .metric-card .mc-sublabel { font-size: 11px; color: rgba(255,255,255,0.5);
+      letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; margin-bottom: 2px; }
+    .metric-card .mc-value { font-size: 32px; font-weight: 700; line-height: 1;
+      font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+    .metric-card .mc-unit { font-size: 16px; font-weight: 500; opacity: 0.6; }
+    .metric-card .mc-spark { opacity: 0.9; }
 
-    /* Spark bars */
-    .spark-section { margin-bottom: 20px; }
-    .spark-header { font-size: 14px; font-weight: 600; color: var(--fg); margin-bottom: 10px; }
-    .spark-bars { display: flex; gap: 6px; align-items: flex-end; justify-content: space-between;
-      padding: 12px 16px; background: white; border: 1px solid var(--line); border-radius: 12px; }
-    .spark-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
-    .spark-bar { width: 100%; max-width: 32px; border-radius: 4px;
-      transition: height 300ms ease; }
-    .spark-bar.high { background: linear-gradient(180deg, #a8e0c4 0%, #4a9b6a 100%); }
-    .spark-bar.mid { background: linear-gradient(180deg, #e8d4a0 0%, #c89b3c 100%); }
-    .spark-bar.low { background: linear-gradient(180deg, #f0b8a8 0%, #b54e3a 100%); }
-    .spark-day { font-size: 10px; color: var(--muted); font-weight: 600; }
+    /* Trends grid (Apple Fitness chevron style) */
+    .trends-grid-header { font-size: 18px; font-weight: 700; color: var(--fg); margin-bottom: 12px; }
+    .trends-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .trend-cell { display: flex; align-items: center; gap: 10px;
+      padding: 14px 12px; background: white; border: 1px solid var(--line);
+      border-radius: 14px; }
+    .trend-cell .tc-chevron-wrap { width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+    .trend-cell .tc-info { flex: 1; min-width: 0; }
+    .trend-cell .tc-label { font-size: 12px; color: var(--muted); font-weight: 600; }
+    .trend-cell .tc-value { font-size: 18px; font-weight: 700; line-height: 1.2;
+      font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+    .trend-cell .tc-unit { font-size: 11px; font-weight: 500; opacity: 0.7; text-transform: uppercase; }
     .settings .reorder-link { display: inline-block; margin-bottom: 12px; padding: 10px 14px;
       background: white; border: 1px solid var(--line); border-radius: 10px;
       color: var(--fg); text-decoration: none; font-weight: 500; }
