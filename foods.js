@@ -17,6 +17,13 @@ export const DEFAULT_FOODS = [
   { id: "buttermilk",     label: "Buttermilk (8oz plain low-fat)",   kcal: 100, p: 8,  fi: 0,  c: 12, fa: 2.5, su: 12 },
   { id: "carrots",        label: "Carrots (6oz raw)",                kcal: 70,  p: 1.5,fi: 5,  c: 16, fa: 0.3, su: 8 },
   { id: "collagen",       label: "Collagen Peptides (1 scoop)",      kcal: 40,  p: 10, fi: 0,  c: 0,  fa: 0,   su: 0 },
+  { id: "hero_white",     label: "Hero White Bread (1 slice)",       kcal: 45,  p: 5,  fi: 11, c: 12, fa: 1,   su: 0 },
+  { id: "hero_seeded",    label: "Hero Seeded Bread (1 slice)",      kcal: 60,  p: 6,  fi: 12, c: 13, fa: 2,   su: 0 },
+  { id: "rice",           label: "Rice (1 cup cooked)",              kcal: 205, p: 4.2,fi: 0.6,c: 44.5,fa: 0.4,su: 0.1 },
+  { id: "idly",           label: "Idly (2 medium)",                  kcal: 130, p: 4,  fi: 2,  c: 26, fa: 0.5, su: 0 },
+  { id: "dosa",           label: "Dosa (1 plain medium)",            kcal: 120, p: 3,  fi: 1,  c: 23, fa: 2.5, su: 0 },
+  { id: "peanut_chutney", label: "Peanut Chutney (2 tbsp)",          kcal: 140, p: 5,  fi: 2,  c: 6,  fa: 12,  su: 1 },
+  { id: "sambar",         label: "Sambar (1 cup / 8oz)",             kcal: 110, p: 4,  fi: 4,  c: 15, fa: 3.5, su: 3 },
 ];
 
 const FOODS_KEY = "wellness:foods";
