@@ -29,8 +29,12 @@ export const DEFAULT_FOODS = [
 const FOODS_KEY = "wellness:foods";
 
 export function loadFoods() {
-  const raw = localStorage.getItem(FOODS_KEY);
-  const custom = raw ? JSON.parse(raw) : [];
+  let custom = [];
+  try {
+    const raw = localStorage.getItem(FOODS_KEY);
+    if (raw) custom = JSON.parse(raw);
+    if (!Array.isArray(custom)) custom = [];
+  } catch { custom = []; }
   return [...DEFAULT_FOODS, ...custom];
 }
 
