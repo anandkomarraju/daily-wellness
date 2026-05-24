@@ -28,8 +28,7 @@ export const DEFAULT_FOODS = [
 
 const FOODS_KEY = "wellness:foods";
 
-export function loadFoods(storage) {
-  const saved = storage.backend ? null : null;
+export function loadFoods() {
   const raw = localStorage.getItem(FOODS_KEY);
   const custom = raw ? JSON.parse(raw) : [];
   return [...DEFAULT_FOODS, ...custom];
