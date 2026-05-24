@@ -714,7 +714,8 @@ function renderWaterPanel() {
 }
 
 function renderFoodPicker(itemId) {
-  const foods = loadFoods();
+  let foods;
+  try { foods = loadFoods(); } catch (e) { return `<div style="color:red;font-size:12px">Food library error: ${e.message}</div>`; }
   const qtys = pickerQuantities;
   let rows = "";
   for (const f of foods) {
@@ -934,10 +935,13 @@ document.addEventListener("change", (ev) => {
 document.addEventListener("click", (ev) => {
   // Food picker interactions
   if (ev.target.matches('.food-pick-btn[data-pick-for]')) {
+    ev.preventDefault();
     ev.stopPropagation();
     const id = ev.target.dataset.pickFor;
     if (pickerOpenFor === id) { pickerOpenFor = null; } else { pickerOpenFor = id; pickerQuantities = {}; }
     renderTracking();
+    const picker = document.querySelector('.food-picker');
+    if (picker) picker.scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
   if (ev.target.matches('.fp-plus[data-food-id]')) {
