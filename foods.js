@@ -24,6 +24,21 @@ export const DEFAULT_FOODS = [
   { id: "dosa",           label: "Dosa (1 plain medium)",            kcal: 120, p: 3,  fi: 1,  c: 23, fa: 2.5, su: 0 },
   { id: "peanut_chutney", label: "Peanut Chutney (2 tbsp)",          kcal: 140, p: 5,  fi: 2,  c: 6,  fa: 12,  su: 1 },
   { id: "sambar",         label: "Sambar (1 cup / 8oz)",             kcal: 110, p: 4,  fi: 4,  c: 15, fa: 3.5, su: 3 },
+  { id: "black_chana_1c", label: "Black Chana / Kala Chana (1 cup)", kcal: 210, p: 10.7, fi: 9.6, c: 25.4, fa: 3.8, su: 6 },
+  { id: "raw_carrots_1c", label: "Raw Carrots chopped (1 cup)",      kcal: 52,  p: 1.2, fi: 3.6, c: 8.7,  fa: 0.3, su: 6.1 },
+  { id: "moong_dal",      label: "Moong Dal cooked (1.5 cups)",      kcal: 318, p: 21.3,fi: 23,  c: 35,   fa: 1.2, su: 6.1 },
+  { id: "spinach_cooked", label: "Spinach cooked (1 cup)",           kcal: 41,  p: 5.3, fi: 4.3, c: 2.5,  fa: 0.5, su: 0.4 },
+  { id: "quinoa_1c",      label: "Quinoa cooked (1 cup)",            kcal: 222, p: 8.1, fi: 5.2, c: 34.2, fa: 3.6, su: 1.6 },
+  { id: "broccoli_cooked",label: "Broccoli cooked (1 cup)",          kcal: 54,  p: 3.7, fi: 3.8, c: 6.4,  fa: 0.6, su: 2.2 },
+  { id: "chickpeas",      label: "Chickpeas / Garbanzo cooked (1 cup)", kcal: 269, p: 14.5, fi: 12.5, c: 32.5, fa: 4.2, su: 7.9 },
+  { id: "avocado_full",   label: "Avocado full (1 medium)",          kcal: 240, p: 3,   fi: 10,  c: 3,    fa: 22,  su: 1 },
+  { id: "sweet_potato",   label: "Sweet Potato baked (1 medium)",    kcal: 103, p: 2.3, fi: 3.8, c: 16,   fa: 0.2, su: 9.6 },
+  { id: "cauliflower",    label: "Cauliflower cooked (1 cup)",       kcal: 29,  p: 2.3, fi: 2.9, c: 2.4,  fa: 0.6, su: 2.1 },
+  { id: "lentil_soup",    label: "Lentil Soup homemade (1 cup)",     kcal: 151, p: 9,   fi: 7,   c: 17,   fa: 3,   su: 4 },
+  { id: "apple_medium",   label: "Apple medium (1)",                 kcal: 95,  p: 0.5, fi: 4.4, c: 20.6, fa: 0.3, su: 18.9 },
+  { id: "mixed_berries",  label: "Mixed Berries (1 cup)",            kcal: 65,  p: 1,   fi: 4,   c: 11,   fa: 0.4, su: 8 },
+  { id: "strawberries",   label: "Strawberries halves (1 cup)",      kcal: 49,  p: 1,   fi: 3,   c: 8.7,  fa: 0.5, su: 7.4 },
+  { id: "blueberries",    label: "Blueberries (1 cup)",              kcal: 84,  p: 1.1, fi: 3.6, c: 17.4, fa: 0.5, su: 15 },
 ];
 
 const FOODS_KEY = "wellness:foods";
