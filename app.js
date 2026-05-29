@@ -146,7 +146,8 @@ function toLocalDatetimeInput(d) {
 }
 function rerender() {
   if (view === "tracking") renderTracking();
-  else renderToday();
+  else if (view === "main") renderToday();
+  // Don't re-render if on settings, goals, timeline, etc.
 }
 // Format a Date as YYYY-MM-DD in local time.
 function ymd(d) {
