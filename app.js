@@ -434,26 +434,51 @@ function paintHeroCard(root, e = entry, dateKey = date) {
 }
 
 function renderNutrientBars(t, interactive = true) {
-  function bar(key, label, value, target, buttons) {
+  function slider(key, label, value, target, max) {
     const pct = Math.min(100, Math.round((value / target) * 100));
     const met = value >= target;
-    const btnsHtml = interactive ? buttons.map(b =>
-      `<button class="nb-btn" data-nut-key="${key}" data-nut-delta="${b}">${b > 0 ? '+' : ''}${b}</button>`
-    ).join("") : "";
+    const manualKey = key === "p" ? "protein_manual" : key === "fi" ? "fiber_manual" : "fats_manual";
+    const manualVal = entry[manualKey] ?? 0;
     return `
       <div class="nb-row" data-status="${met ? 'met' : ''}">
         <div class="nb-label">${label}</div>
-        <div class="nb-track"><span class="nb-fill" style="width:${pct}%"></span></div>
         <div class="nb-value">${Math.round(value)}<span class="nb-unit">/ ${target}g</span></div>
-        ${btnsHtml ? `<div class="nb-actions">${btnsHtml}</div>` : ""}
+        ${interactive ? `<input type="range" class="nb-slider" data-nut-slider="${key}" min="0" max="${max}" step="5" value="${manualVal}" />` : `<div class="nb-track"><span class="nb-fill" style="width:${pct}%"></span></div>`}
       </div>
     `;
   }
   return `
     <div class="nb-title">Nutrients</div>
-    ${bar("p",  "Protein", t.p,  goals.protein_g, [5, 10, -5])}
-    ${bar("fi", "Fiber",   t.fi, goals.fiber_g,   [5, -5])}
-    ${bar("fa", "Fats",    t.fa, goals.fats_g,    [5, -5])}
+    ${slider("p",  "Protein", t.p,  goals.protein_g, 200)}
+    ${slider("fi", "Fiber",   t.fi, goals.fiber_g,   80)}
+    ${slider("fa", "Fats",    t.fa, goals.fats_g,    120)}
+  `;
+}
+
+function renderStepsHorizontal(e = entry, interactive = true) {
+  const s = e.steps ?? 0;
+  const goal = goals.steps;
+  const p = Math.min(100, Math.round((s / goal) * 100));
+  const met = s >= goal;
+  const display = s >= 1000 ? `${(s/1000).toFixed(1)}k` : `${s}`;
+  const goalDisp = goal >= 1000 ? `${(goal/1000).toFixed(goal % 1000 === 0 ? 0 : 1)}k` : goal;
+
+  const editHtml = (interactive && stepsEditOpen)
+    ? `<div class="steps-edit"><input type="number" min="0" inputmode="numeric" id="steps-input" value="${s || ''}" placeholder="0" /><button class="ft-btn primary" id="steps-save">Save</button><button class="ft-btn ghost" id="steps-cancel">Cancel</button></div>`
+    : (interactive ? `<button class="ft-btn ghost small" id="steps-emoji-edit">edit</button>` : "");
+
+  return `
+    <div class="steps-horiz ${met ? 'met' : ''}">
+      <span class="steps-icon">👟</span>
+      <div class="steps-body">
+        <div class="steps-top">
+          <span class="steps-val">${display}</span>
+          <span class="steps-goal">/ ${goalDisp} steps${met ? ' ✓' : ''}</span>
+          ${editHtml}
+        </div>
+        <div class="steps-bar"><span style="width:${p}%"></span></div>
+      </div>
+    </div>
   `;
 }
 
@@ -523,13 +548,18 @@ function renderToday() {
   `;
   root.appendChild(nav);
 
-  // Fasting + Steps rings (read-only when viewing past date)
-  const controls = document.createElement("section");
-  controls.className = "controls-panel";
-  controls.innerHTML = renderControlsPanel(ve, viewDate, viewing);
-  root.appendChild(controls);
+  // Fasting timer
+  const fastWrap = document.createElement("section");
+  fastWrap.innerHTML = renderFastingTimer(ve, viewDate, viewing);
+  root.appendChild(fastWrap);
 
-  // Nutrient bars
+  // Water panel
+  const waterWrap = document.createElement("section");
+  waterWrap.className = "controls-panel";
+  waterWrap.innerHTML = renderWaterPanel();
+  root.appendChild(waterWrap);
+
+  // Nutrient sliders
   if (goals.track_nutrients !== false) {
     const nutWrap = document.createElement("section");
     nutWrap.className = "nb-block";
@@ -538,11 +568,10 @@ function renderToday() {
     root.appendChild(nutWrap);
   }
 
-  // Water panel
-  const waterWrap = document.createElement("section");
-  waterWrap.className = "controls-panel";
-  waterWrap.innerHTML = renderWaterPanel();
-  root.appendChild(waterWrap);
+  // Steps (horizontal)
+  const stepsWrap = document.createElement("section");
+  stepsWrap.innerHTML = renderStepsHorizontal(ve, viewing);
+  root.appendChild(stepsWrap);
 
   // Sleep display
   const sleepH = ve.sleepHours ?? 0;
@@ -615,6 +644,11 @@ function renderFastingTimer(e = entry, dateKey = date, interactive = true) {
   const icon = isFasting ? "⚡" : "🕐";
   const stateLabel = isFasting ? "FASTING" : (completedCount > 0 ? "DONE" : "EATING");
 
+  // Eating window: fasting ends at noon (12:00), eating window = 24 - goalH hours
+  // e.g. 16h fast → 8h eating → fast starts at 8pm, ends at noon next day
+  const eatingWindowH = 24 - goalH;
+  const fastStartHour = 12 + eatingWindowH; // e.g. 12 + 8 = 20 (8pm)
+
   let timeDisplay, subtext;
   if (isFasting && !goalReached) {
     timeDisplay = countdown;
@@ -624,10 +658,18 @@ function renderFastingTimer(e = entry, dateKey = date, interactive = true) {
     subtext = `Goal reached! · ${currentFastStage(totalH).name}`;
   } else if (completedCount > 0) {
     timeDisplay = `${totalH.toFixed(1)}h`;
-    subtext = `${completedCount} fast${completedCount === 1 ? '' : 's'} completed`;
+    subtext = `${completedCount} fast${completedCount === 1 ? '' : 's'} completed today`;
   } else {
-    timeDisplay = "—";
-    subtext = "No fast today";
+    // Show time until next fast starts (eating window remaining)
+    const now = new Date();
+    const h = now.getHours() + now.getMinutes() / 60;
+    let hoursUntilFast = fastStartHour - h;
+    if (hoursUntilFast < 0) hoursUntilFast += 24;
+    const untilMs = hoursUntilFast * 3600000;
+    const uH = Math.floor(untilMs / 3600000);
+    const uM = Math.floor((untilMs % 3600000) / 60000);
+    timeDisplay = `${String(uH).padStart(2,"0")}:${String(uM).padStart(2,"0")}`;
+    subtext = `Eating window · fast starts ${fastStartHour > 12 ? (fastStartHour - 12) + "pm" : fastStartHour + "am"}`;
   }
 
   let actions = "";
@@ -1130,6 +1172,24 @@ function refreshMacrosBlock() {
   }
 }
 document.addEventListener("input", (ev) => {
+  if (ev.target.matches('.nb-slider[data-nut-slider]')) {
+    const key = ev.target.dataset.nutSlider;
+    const val = Number(ev.target.value) || 0;
+    const macKey = key === "p" ? "protein_manual" : key === "fi" ? "fiber_manual" : "fats_manual";
+    entry[macKey] = val;
+    persist();
+    const block = document.getElementById("macros-block");
+    if (block) {
+      const valEl = ev.target.closest(".nb-row")?.querySelector(".nb-value");
+      if (valEl) {
+        const t = macroTotals();
+        const total = key === "p" ? t.p : key === "fi" ? t.fi : t.fa;
+        const target = key === "p" ? goals.protein_g : key === "fi" ? goals.fiber_g : goals.fats_g;
+        valEl.innerHTML = `${Math.round(total)}<span class="nb-unit">/ ${target}g</span>`;
+      }
+    }
+    return;
+  }
   if (ev.target.matches(".row textarea")) {
     const id = ev.target.closest(".row").dataset.id;
     const value = ev.target.value;

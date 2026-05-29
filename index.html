@@ -738,12 +738,42 @@
     .nb-row .nb-value { font-size: 13px; font-weight: 700; color: var(--fg);
       font-variant-numeric: tabular-nums; min-width: 70px; text-align: right; }
     .nb-row .nb-unit { font-size: 11px; color: var(--muted); font-weight: 500; }
+    .nb-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 8px;
+      background: rgba(0,0,0,0.06); border-radius: 999px; outline: none;
+      cursor: pointer; flex-basis: 100%; margin-top: 4px; }
+    .nb-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: linear-gradient(135deg, #7fc996 0%, #4a9b6a 100%);
+      box-shadow: 0 2px 4px rgba(74,155,106,0.3); cursor: pointer; }
     .nb-row .nb-actions { display: flex; gap: 4px; flex-basis: 100%; justify-content: flex-end;
       padding-top: 4px; }
     .nb-btn { padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line);
       background: white; font: inherit; font-size: 12px; font-weight: 600;
       cursor: pointer; transition: transform 100ms ease; }
     .nb-btn:active { transform: scale(.94); }
+
+    /* Steps horizontal bar */
+    .steps-horiz { display: flex; align-items: center; gap: 12px;
+      padding: 14px 18px; border-radius: 14px;
+      background: linear-gradient(135deg, #fcefe0 0%, #f5e1cc 100%);
+      border: 1px solid rgba(200, 149, 75, 0.25);
+      margin: 10px 0 14px; }
+    .steps-horiz.met { border-color: rgba(74, 155, 106, 0.3); }
+    .steps-horiz .steps-icon { font-size: 22px; flex: 0 0 auto; }
+    .steps-horiz .steps-body { flex: 1; min-width: 0; }
+    .steps-horiz .steps-top { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+    .steps-horiz .steps-val { font-size: 22px; font-weight: 700; color: #6e4f2a;
+      font-variant-numeric: tabular-nums; line-height: 1; }
+    .steps-horiz .steps-goal { font-size: 13px; color: #8a6840; font-weight: 500; }
+    .steps-horiz .steps-bar { height: 8px; background: rgba(200, 149, 75, 0.18);
+      border-radius: 999px; overflow: hidden; margin-top: 8px; }
+    .steps-horiz .steps-bar > span { display: block; height: 100%; border-radius: 999px;
+      background: linear-gradient(90deg, #d4a368 0%, #b88142 100%);
+      transition: width 300ms ease; }
+    .steps-horiz .steps-edit { display: flex; gap: 6px; align-items: center; margin-left: auto; }
+    .steps-horiz .steps-edit input { width: 80px; padding: 5px 8px;
+      border: 1px solid rgba(200, 149, 75, 0.4); border-radius: 6px;
+      font: inherit; font-weight: 700; font-variant-numeric: tabular-nums; }
 
     /* Walk chips */
     .walks-row .walk-chips { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
