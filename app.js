@@ -443,7 +443,7 @@ function renderNutrientBars(t, interactive = true) {
       <div class="nb-row" data-status="${met ? 'met' : ''}">
         <div class="nb-label">${label}</div>
         <div class="nb-value">${Math.round(value)}<span class="nb-unit">/ ${target}g</span></div>
-        ${interactive ? `<input type="range" class="nb-slider" data-nut-slider="${key}" min="0" max="${max}" step="5" value="${manualVal}" />` : `<div class="nb-track"><span class="nb-fill" style="width:${pct}%"></span></div>`}
+        ${interactive ? `<input type="range" class="nb-slider" data-nut-slider="${key}" min="0" max="${max}" step="1" value="${manualVal}" />` : `<div class="nb-track"><span class="nb-fill" style="width:${pct}%"></span></div>`}
       </div>
     `;
   }
@@ -644,10 +644,8 @@ function renderFastingTimer(e = entry, dateKey = date, interactive = true) {
   const icon = isFasting ? "⚡" : "🕐";
   const stateLabel = isFasting ? "FASTING" : (completedCount > 0 ? "DONE" : "EATING");
 
-  // Eating window: fasting ends at noon (12:00), eating window = 24 - goalH hours
-  // e.g. 16h fast → 8h eating → fast starts at 8pm, ends at noon next day
-  const eatingWindowH = 24 - goalH;
-  const fastStartHour = 12 + eatingWindowH; // e.g. 12 + 8 = 20 (8pm)
+  // Fast starts at 8pm (20:00) always. After 8pm, show 00:00:00 countdown (time to start).
+  const fastStartHour = 20;
 
   let timeDisplay, subtext;
   if (isFasting && !goalReached) {
@@ -660,16 +658,21 @@ function renderFastingTimer(e = entry, dateKey = date, interactive = true) {
     timeDisplay = `${totalH.toFixed(1)}h`;
     subtext = `${completedCount} fast${completedCount === 1 ? '' : 's'} completed today`;
   } else {
-    // Show time until next fast starts (eating window remaining)
     const now = new Date();
-    const h = now.getHours() + now.getMinutes() / 60;
-    let hoursUntilFast = fastStartHour - h;
-    if (hoursUntilFast < 0) hoursUntilFast += 24;
-    const untilMs = hoursUntilFast * 3600000;
-    const uH = Math.floor(untilMs / 3600000);
-    const uM = Math.floor((untilMs % 3600000) / 60000);
-    timeDisplay = `${String(uH).padStart(2,"0")}:${String(uM).padStart(2,"0")}`;
-    subtext = `Eating window · fast starts ${fastStartHour > 12 ? (fastStartHour - 12) + "pm" : fastStartHour + "am"}`;
+    const h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+    if (h >= fastStartHour) {
+      // After 8pm — show 00:00:00 (fast should start now)
+      timeDisplay = "00:00:00";
+      subtext = "Time to start fasting!";
+    } else {
+      // Before 8pm — show countdown to 8pm
+      const untilMs = (fastStartHour - h) * 3600000;
+      const uH = Math.floor(untilMs / 3600000);
+      const uM = Math.floor((untilMs % 3600000) / 60000);
+      const uS = Math.floor((untilMs % 60000) / 1000);
+      timeDisplay = `${String(uH).padStart(2,"0")}:${String(uM).padStart(2,"0")}:${String(uS).padStart(2,"0")}`;
+      subtext = `Eating window · fast starts 8pm`;
+    }
   }
 
   let actions = "";
