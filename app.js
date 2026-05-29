@@ -1375,7 +1375,8 @@ window.__wellness_goals = () => goals;
 
   const stepsParam = params.get("steps");
   if (stepsParam != null) {
-    const v = Math.round(Number(stepsParam));
+    const raw = Math.round(Number(stepsParam));
+    const v = raw > 20000 ? Math.round(raw / 2) : raw;
     if (v > 0) { entry.steps = v; changed = true; }
   }
 
