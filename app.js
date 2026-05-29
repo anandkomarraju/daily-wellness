@@ -845,12 +845,25 @@ function applyFoodPicker(itemId) {
 }
 
 function renderTracking() {
-  document.getElementById("title").textContent = "Checklist";
-  const { done, total } = countDone(entry);
-  document.getElementById("stat").textContent = `${done} of ${total} done`;
+  document.querySelector("header")?.classList.add("hidden");
+  document.getElementById("title").textContent = "";
+  document.getElementById("stat").textContent = "";
 
   const root = document.getElementById("app");
   root.innerHTML = "";
+
+  // Date navigation
+  const nav = document.createElement("div");
+  nav.className = "date-nav";
+  nav.innerHTML = `
+    <button id="date-prev" class="date-arrow" aria-label="Previous day">‹</button>
+    <label class="date-label-wrap">
+      <span class="date-label-text">${shortDate(viewDate)}</span>
+      <input type="date" id="date-picker" value="${viewDate}" max="${date}" />
+    </label>
+    <button id="date-next" class="date-arrow" aria-label="Next day" ${isViewingToday() ? "disabled" : ""}>›</button>
+  `;
+  root.appendChild(nav);
 
   const sec = document.createElement("section");
   sec.className = "ordered";
