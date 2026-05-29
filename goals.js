@@ -2,6 +2,7 @@ export const DEFAULT_GOALS = {
   track_nutrients: true,
   water_oz: 140,
   steps: 10000,
+  walks_goal: 3,
   kcal: 1800,
   protein_g: 125,
   fiber_g: 35,

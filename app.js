@@ -292,6 +292,10 @@ function macroTotals(e = entry) {
     su   += Number(m.su)   || 0;
     kcal += Number(m.kcal) || 0;
   }
+  // Manual nutrient bar additions
+  p  += Number(e?.protein_manual) || 0;
+  fi += Number(e?.fiber_manual)   || 0;
+  fa += Number(e?.fats_manual)    || 0;
   return { p, fi, fa, c, su, kcal };
 }
 
@@ -354,9 +358,15 @@ function computeScores(e = entry, dateKey = date) {
   const recoveryDone = e?.items?.["recovery_routine"]?.checked ? 1 : 0;
   const strengthDone = e?.items?.["strength_training"]?.checked ? 1 : 0;
 
-  // "Other" = entry's own items minus recovery + strength
+  // Walks: use consolidated walksCompleted field
+  const WALK_IDS = ["walk_after_breakfast", "walk_after_lunch", "walk_after_dinner"];
+  const walkGoal = goals.walks_goal ?? 3;
+  const walksDone = e?.walksCompleted ?? 0;
+  const walksFrac = walkGoal > 0 ? Math.min(1, walksDone / walkGoal) : 0;
+
+  // "Other" = entry's own items minus recovery, strength, and walks
   const eItems = e?.items ?? {};
-  const otherIds = Object.keys(eItems).filter(id => id !== "recovery_routine" && id !== "strength_training");
+  const otherIds = Object.keys(eItems).filter(id => id !== "recovery_routine" && id !== "strength_training" && !WALK_IDS.includes(id));
   const otherTotal = otherIds.length;
   const otherDone = otherIds.filter(id => eItems[id]?.checked).length;
   const otherFrac = otherTotal > 0 ? otherDone / otherTotal : 0;
@@ -369,15 +379,15 @@ function computeScores(e = entry, dateKey = date) {
     waterFrac * 0.10 +
     stepsFrac * 0.10 +
     (trackNut ? nutFrac * 0.10 : 0) +
+    walksFrac * 0.10 +
     recoveryDone * 0.10 +
     strengthDone * 0.10 +
-    otherFrac * 0.40;
+    otherFrac * 0.30;
   const totalWeight = trackNut ? 1.0 : 0.90;
   const overall = Math.round((sumWeighted / totalWeight) * 100);
 
-  // Routine sub-score combines recovery + strength + other proportionally to their weights
-  // (10 + 10 + 40 = 60 → renormalize to 0..1)
-  const routineFrac = (recoveryDone * 0.10 + strengthDone * 0.10 + otherFrac * 0.40) / 0.60;
+  // Routine sub-score
+  const routineFrac = (walksFrac * 0.10 + recoveryDone * 0.10 + strengthDone * 0.10 + otherFrac * 0.30) / 0.60;
 
   return {
     overall,
@@ -423,42 +433,27 @@ function paintHeroCard(root, e = entry, dateKey = date) {
   root.appendChild(hero);
 }
 
-function renderNutrientRings(t) {
-  // direction: "min" = green when value >= target (target/atLeast); "max" = green when value <= target (limit)
-  function ring(key, label, value, target, unit = "g", direction = "min") {
-    const p = target ? Math.min(100, Math.round((value / target) * 100)) : 0;
-    const denom = target ? `/ ${target}${unit}` : unit;
-    const met = direction === "min" ? value >= target : value <= target;
-    const status = met ? "met" : "unmet";
+function renderNutrientBars(t, interactive = true) {
+  function bar(key, label, value, target, buttons) {
+    const pct = Math.min(100, Math.round((value / target) * 100));
+    const met = value >= target;
+    const btnsHtml = interactive ? buttons.map(b =>
+      `<button class="nb-btn" data-nut-key="${key}" data-nut-delta="${b}">${b > 0 ? '+' : ''}${b}</button>`
+    ).join("") : "";
     return `
-      <div class="nutrient-ring" data-key="${key}" data-status="${status}">
-        <div class="ring-wrap">
-          <svg viewBox="0 0 64 64">
-            <circle class="track" cx="32" cy="32" r="26" stroke-width="6" />
-            <circle class="prog"  cx="32" cy="32" r="26" stroke-width="6"
-                    stroke-dasharray="${2 * Math.PI * 26}"
-                    stroke-dashoffset="${2 * Math.PI * 26 * (1 - p/100)}"
-                    transform="rotate(-90 32 32)" />
-          </svg>
-          <div class="ring-center">
-            <div class="num">${value}</div>
-            <div class="denom">${denom}</div>
-          </div>
-        </div>
-        <div class="label">${label}</div>
+      <div class="nb-row" data-status="${met ? 'met' : ''}">
+        <div class="nb-label">${label}</div>
+        <div class="nb-track"><span class="nb-fill" style="width:${pct}%"></span></div>
+        <div class="nb-value">${Math.round(value)}<span class="nb-unit">/ ${target}g</span></div>
+        ${btnsHtml ? `<div class="nb-actions">${btnsHtml}</div>` : ""}
       </div>
     `;
   }
   return `
-    <div class="nutrients-title">Today's Nutrients</div>
-    <div class="nutrient-rings">
-      ${ring("kcal","Calories",  t.kcal, goals.kcal,        "",  "min")}
-      ${ring("p",   "Protein",   t.p,    goals.protein_g,   "g", "min")}
-      ${ring("fi",  "Fiber",     t.fi,   goals.fiber_g,     "g", "min")}
-      ${ring("fa",  "Fats",      t.fa,   goals.fats_g,      "g", "max")}
-      ${ring("c",   "Net Carbs", t.c,    goals.net_carbs_g, "g", "max")}
-      ${ring("su",  "Sugar",     t.su,   goals.sugar_max_g, "g", "max")}
-    </div>
+    <div class="nb-title">Nutrients</div>
+    ${bar("p",  "Protein", t.p,  goals.protein_g, [5, 10, -5])}
+    ${bar("fi", "Fiber",   t.fi, goals.fiber_g,   [5, -5])}
+    ${bar("fa", "Fats",    t.fa, goals.fats_g,    [5, -5])}
   `;
 }
 
@@ -555,12 +550,12 @@ function renderToday() {
   controls.innerHTML = renderControlsPanel(ve, viewDate, viewing);
   root.appendChild(controls);
 
-  // Nutrient rings
+  // Nutrient bars
   if (goals.track_nutrients !== false) {
     const nutWrap = document.createElement("section");
-    nutWrap.className = "nutrients-block";
+    nutWrap.className = "nb-block";
     nutWrap.id = "macros-block";
-    nutWrap.innerHTML = renderNutrientRings(macroTotals(ve));
+    nutWrap.innerHTML = renderNutrientBars(macroTotals(ve), viewing);
     root.appendChild(nutWrap);
   }
 
@@ -794,8 +789,45 @@ function renderTracking() {
 
   const sec = document.createElement("section");
   sec.className = "ordered";
+  const WALK_IDS = ["walk_after_breakfast", "walk_after_lunch", "walk_after_dinner"];
   const flat = [...items.items].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  flat.forEach((it, idx) => {
+  const nonWalkItems = flat.filter(it => !WALK_IDS.includes(it.id));
+  let rowNum = 0;
+  let walksInserted = false;
+
+  flat.forEach((it) => {
+    // Skip individual walk items — they're consolidated below
+    if (WALK_IDS.includes(it.id)) {
+      // Insert the walks row once, after the first walk's natural position
+      if (!walksInserted) {
+        walksInserted = true;
+        rowNum++;
+        const walkGoal = goals.walks_goal ?? 3;
+        const walksDone = entry.walksCompleted ?? 0;
+        const walkRow = document.createElement("div");
+        walkRow.className = "row walks-row";
+        walkRow.dataset.id = "walks_consolidated";
+        walkRow.innerHTML = `
+          <span class="glyph">🚶</span>
+          <div class="num">${rowNum}.</div>
+          <div class="label">
+            Post-Meal Walks
+            <div class="walk-chips">
+              ${Array.from({length: walkGoal}, (_, i) => {
+                const n = i + 1;
+                const active = n <= walksDone;
+                return `<button class="walk-chip ${active ? 'active' : ''}" data-walk-n="${n}">${n}</button>`;
+              }).join("")}
+              <span class="walk-count">${walksDone} of ${walkGoal}</span>
+            </div>
+          </div>
+        `;
+        sec.appendChild(walkRow);
+      }
+      return;
+    }
+
+    rowNum++;
     const cell = entry.items[it.id] ?? { checked: false, comment: "", label: it.label };
     const row = document.createElement("div");
     row.className = "row";
@@ -806,7 +838,7 @@ function renderTracking() {
     row.innerHTML = `
       <input type="checkbox" ${cell.checked ? "checked" : ""} />
       <span class="glyph">${glyph}</span>
-      <div class="num">${idx + 1}.</div>
+      <div class="num">${rowNum}.</div>
       <div class="label">
         ${it.label}
         ${!cell.checked ? `<span class="note-toggle">+ note</span>` : ""}
@@ -998,6 +1030,22 @@ document.addEventListener("click", (ev) => {
     if (v) setFastEnd(v);
     return;
   }
+  if (ev.target.matches('.nb-btn[data-nut-key]')) {
+    const key = ev.target.dataset.nutKey;
+    const delta = Number(ev.target.dataset.nutDelta);
+    const macKey = key === "p" ? "protein_manual" : key === "fi" ? "fiber_manual" : "fats_manual";
+    entry[macKey] = Math.max(0, (entry[macKey] ?? 0) + delta);
+    persist();
+    rerender();
+    return;
+  }
+  if (ev.target.matches('.walk-chip[data-walk-n]')) {
+    const n = Number(ev.target.dataset.walkN);
+    entry.walksCompleted = (entry.walksCompleted === n) ? n - 1 : n;
+    persist();
+    rerender();
+    return;
+  }
   if (ev.target.matches('[data-water]')) {
     const oz = Number(ev.target.dataset.water);
     if (oz > 0) addWater(oz);
@@ -1051,13 +1099,11 @@ document.addEventListener("click", (ev) => {
 
 const typingTimers = {};
 function refreshMacrosBlock() {
-  // On Today: full re-render (score depends on macros).
-  // On Tracking: just update the rings block in place — don't blow away input focus.
   if (view === "main") {
     renderToday();
   } else if (view === "tracking") {
     const block = document.getElementById("macros-block");
-    if (block) block.innerHTML = renderNutrientRings(macroTotals());
+    if (block) block.innerHTML = renderNutrientBars(macroTotals());
   }
 }
 document.addEventListener("input", (ev) => {
