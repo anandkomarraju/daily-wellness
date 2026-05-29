@@ -307,8 +307,26 @@ function pct(value, target) {
 function startTicker() {
   if (tickerHandle) return;
   tickerHandle = setInterval(() => {
-    if (activeFast && !fastEditOpen) {
-      rerender();
+    if (!activeFast || fastEditOpen || stepsEditOpen) return;
+    // Only update the fasting timer text, don't re-render the whole page
+    const ftTime = document.querySelector('.ft-time');
+    const ftSub = document.querySelector('.ft-sub');
+    if (ftTime && ftSub) {
+      const goalH = goals.fast_goal_hours ?? DEFAULT_FAST_GOAL_HOURS;
+      const totalH = totalFastedHoursToday();
+      const elapsedMs = totalH * 3600000;
+      const eH = Math.floor(elapsedMs / 3600000);
+      const eM = Math.floor((elapsedMs % 3600000) / 60000);
+      const eS = Math.floor((elapsedMs % 60000) / 1000);
+      ftTime.textContent = `${String(eH).padStart(2,"0")}:${String(eM).padStart(2,"0")}:${String(eS).padStart(2,"0")}`;
+      const remainingMs = Math.max(0, (goalH * 3600000) - elapsedMs);
+      if (remainingMs > 0) {
+        const rH = Math.floor(remainingMs / 3600000);
+        const rM = Math.floor((remainingMs % 3600000) / 60000);
+        ftSub.textContent = `${rH}h ${String(rM).padStart(2,"0")}m remaining · ${currentFastStage(totalH).name}`;
+      } else {
+        ftSub.textContent = `Goal reached! · ${currentFastStage(totalH).name}`;
+      }
     }
   }, 1000);
 }
