@@ -323,17 +323,22 @@ export function renderSettings(root, storage, items, onChange, backup) {
       root.querySelector("#import-file").click();
       return;
     }
-    const itemRow = ev.target.closest(".item");
+    const btn = ev.target.closest("[data-act]");
+    if (!btn) return;
+    const itemRow = btn.closest(".item");
     if (!itemRow) return;
     const id = itemRow.dataset.id;
-    const act = ev.target.dataset.act;
+    const act = btn.dataset.act;
     if (!act) return;
+    ev.stopPropagation();
+    // Guard: check item still exists
+    const realIdx = items.items.findIndex(i => i.id === id);
+    if (realIdx === -1) return;
     // Work with sorted array to match visual order
     const sorted = [...items.items].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     const sortedIdx = sorted.findIndex(i => i.id === id);
-    const realIdx = items.items.findIndex(i => i.id === id);
     if (act === "del") {
-      if (!confirm("Delete this item? History keeps the old record.")) return;
+      if (!confirm("Delete this item?")) return;
       items.items.splice(realIdx, 1);
       save();
     } else if (act === "macros") {
