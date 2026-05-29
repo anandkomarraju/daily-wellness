@@ -523,7 +523,28 @@ function renderToday() {
   `;
   root.appendChild(nav);
 
-  // Sleep display FIRST (shown when sleep data exists)
+  // Fasting + Steps rings (read-only when viewing past date)
+  const controls = document.createElement("section");
+  controls.className = "controls-panel";
+  controls.innerHTML = renderControlsPanel(ve, viewDate, viewing);
+  root.appendChild(controls);
+
+  // Nutrient bars
+  if (goals.track_nutrients !== false) {
+    const nutWrap = document.createElement("section");
+    nutWrap.className = "nb-block";
+    nutWrap.id = "macros-block";
+    nutWrap.innerHTML = renderNutrientBars(macroTotals(ve), viewing);
+    root.appendChild(nutWrap);
+  }
+
+  // Water panel
+  const waterWrap = document.createElement("section");
+  waterWrap.className = "controls-panel";
+  waterWrap.innerHTML = renderWaterPanel();
+  root.appendChild(waterWrap);
+
+  // Sleep display
   const sleepH = ve.sleepHours ?? 0;
   if (sleepH > 0) {
     const sleepEl = document.createElement("div");
@@ -541,23 +562,8 @@ function renderToday() {
     root.appendChild(sleepEl);
   }
 
-  // Wellness Score card
+  // Wellness Score card (summary at bottom)
   paintHeroCard(root, ve, viewDate);
-
-  // Fasting + Steps rings (read-only when viewing past date)
-  const controls = document.createElement("section");
-  controls.className = "controls-panel";
-  controls.innerHTML = renderControlsPanel(ve, viewDate, viewing);
-  root.appendChild(controls);
-
-  // Nutrient bars
-  if (goals.track_nutrients !== false) {
-    const nutWrap = document.createElement("section");
-    nutWrap.className = "nb-block";
-    nutWrap.id = "macros-block";
-    nutWrap.innerHTML = renderNutrientBars(macroTotals(ve), viewing);
-    root.appendChild(nutWrap);
-  }
 
   startTicker();
 }
@@ -780,12 +786,6 @@ function renderTracking() {
 
   const root = document.getElementById("app");
   root.innerHTML = "";
-
-  // Water panel
-  const waterWrap = document.createElement("section");
-  waterWrap.className = "controls-panel";
-  waterWrap.innerHTML = renderWaterPanel();
-  root.appendChild(waterWrap);
 
   const sec = document.createElement("section");
   sec.className = "ordered";
