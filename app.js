@@ -634,19 +634,15 @@ function bigRingSvg(p) {
 
 function renderFastingTimer(e = entry, dateKey = date, interactive = true) {
   const goalH = goals.fast_goal_hours ?? DEFAULT_FAST_GOAL_HOURS;
-  const totalH = totalFastedHoursForEntry(e, dateKey);
-  const pct = Math.min(100, Math.round((totalH / goalH) * 100));
   const isFasting = interactive && !!activeFast;
   const completedCount = (e.completedFasts ?? []).length;
   const lastFast = completedCount > 0 ? e.completedFasts[completedCount - 1] : null;
 
-  // Countdown: time REMAINING to reach goal
+  // Only show elapsed progress while actively fasting; otherwise ring is empty
+  const totalH = isFasting ? totalFastedHoursForEntry(e, dateKey) : 0;
+  const pct = Math.min(100, Math.round((totalH / goalH) * 100));
   const remainingMs = Math.max(0, (goalH * 3600000) - (totalH * 3600000));
-  const remH = Math.floor(remainingMs / 3600000);
-  const remM = Math.floor((remainingMs % 3600000) / 60000);
-  const remS = Math.floor((remainingMs % 60000) / 1000);
-  const countdown = `${String(remH).padStart(2,"0")}:${String(remM).padStart(2,"0")}:${String(remS).padStart(2,"0")}`;
-  const goalReached = totalH >= goalH;
+  const goalReached = isFasting && totalH >= goalH;
 
   // Ring SVG (compact, 56px)
   const r = 22, c = 2 * Math.PI * r;
@@ -661,20 +657,17 @@ function renderFastingTimer(e = entry, dateKey = date, interactive = true) {
     </svg>
   `;
   const icon = isFasting ? "⚡" : "🕐";
-  const stateLabel = isFasting ? "FASTING" : (completedCount > 0 ? "DONE" : "EATING");
+  const stateLabel = isFasting ? "FASTING" : "EATING";
 
-  // Fast starts at 8pm (20:00) always. After 8pm, show 00:00:00 countdown (time to start).
   const fastStartHour = 20;
 
   let timeDisplay, subtext;
   if (isFasting) {
-    // Big number: how long you've been fasting (elapsed)
     const elapsedMs = totalH * 3600000;
     const eH = Math.floor(elapsedMs / 3600000);
     const eM = Math.floor((elapsedMs % 3600000) / 60000);
     const eS = Math.floor((elapsedMs % 60000) / 1000);
     timeDisplay = `${String(eH).padStart(2,"0")}:${String(eM).padStart(2,"0")}:${String(eS).padStart(2,"0")}`;
-    // Subtext: remaining time OR goal reached
     if (goalReached) {
       subtext = `Goal reached! · ${currentFastStage(totalH).name}`;
     } else {
@@ -682,9 +675,6 @@ function renderFastingTimer(e = entry, dateKey = date, interactive = true) {
       const remM = Math.floor((remainingMs % 3600000) / 60000);
       subtext = `${remH}h ${String(remM).padStart(2,"0")}m remaining · ${currentFastStage(totalH).name}`;
     }
-  } else if (completedCount > 0) {
-    timeDisplay = `${totalH.toFixed(1)}h`;
-    subtext = `${completedCount} fast${completedCount === 1 ? '' : 's'} completed today`;
   } else {
     const now = new Date();
     const h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
