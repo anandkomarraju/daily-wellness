@@ -648,12 +648,21 @@ function renderFastingTimer(e = entry, dateKey = date, interactive = true) {
   const fastStartHour = 20;
 
   let timeDisplay, subtext;
-  if (isFasting && !goalReached) {
-    timeDisplay = countdown;
-    subtext = `Fasting for ${totalH.toFixed(1)}h · ${currentFastStage(totalH).name}`;
-  } else if (isFasting && goalReached) {
-    timeDisplay = `${totalH.toFixed(1)}h`;
-    subtext = `Goal reached! · ${currentFastStage(totalH).name}`;
+  if (isFasting) {
+    // Big number: how long you've been fasting (elapsed)
+    const elapsedMs = totalH * 3600000;
+    const eH = Math.floor(elapsedMs / 3600000);
+    const eM = Math.floor((elapsedMs % 3600000) / 60000);
+    const eS = Math.floor((elapsedMs % 60000) / 1000);
+    timeDisplay = `${String(eH).padStart(2,"0")}:${String(eM).padStart(2,"0")}:${String(eS).padStart(2,"0")}`;
+    // Subtext: remaining time OR goal reached
+    if (goalReached) {
+      subtext = `Goal reached! · ${currentFastStage(totalH).name}`;
+    } else {
+      const remH = Math.floor(remainingMs / 3600000);
+      const remM = Math.floor((remainingMs % 3600000) / 60000);
+      subtext = `${remH}h ${String(remM).padStart(2,"0")}m remaining · ${currentFastStage(totalH).name}`;
+    }
   } else if (completedCount > 0) {
     timeDisplay = `${totalH.toFixed(1)}h`;
     subtext = `${completedCount} fast${completedCount === 1 ? '' : 's'} completed today`;
@@ -661,11 +670,9 @@ function renderFastingTimer(e = entry, dateKey = date, interactive = true) {
     const now = new Date();
     const h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
     if (h >= fastStartHour) {
-      // After 8pm — show 00:00:00 (fast should start now)
       timeDisplay = "00:00:00";
       subtext = "Time to start fasting!";
     } else {
-      // Before 8pm — show countdown to 8pm
       const untilMs = (fastStartHour - h) * 3600000;
       const uH = Math.floor(untilMs / 3600000);
       const uM = Math.floor((untilMs % 3600000) / 60000);
