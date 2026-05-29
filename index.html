@@ -682,6 +682,42 @@
       background: rgba(176, 74, 122, 0.08); color: #b04a7a; font-weight: 600; }
     .hero .snack-chip .chip-mac .sugar-flag { color: #b04a7a; font-weight: 700; }
 
+    /* Fasting timer (Fastic-style compact) */
+    .fast-timer { display: flex; align-items: center; gap: 16px;
+      padding: 16px 18px; border-radius: 16px;
+      background: linear-gradient(135deg, #f0f7f0 0%, #e8f1e6 100%);
+      border: 1px solid rgba(91, 184, 138, 0.25);
+      margin-bottom: 12px; }
+    .fast-timer.active { background: linear-gradient(135deg, #e6f5ec 0%, #d4eede 100%);
+      border-color: rgba(74, 155, 106, 0.35); }
+    .fast-timer .ft-ring { position: relative; flex: 0 0 auto;
+      display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .fast-timer .ft-ring-svg { width: 56px; height: 56px;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.06)); }
+    .fast-timer .ft-ring-icon { position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+      font-size: 16px; line-height: 1; }
+    .fast-timer .ft-ring-label { font-size: 9px; letter-spacing: 0.10em; text-transform: uppercase;
+      font-weight: 700; color: #4a6a4a; margin-top: 2px; }
+    .fast-timer .ft-info { flex: 1; min-width: 0; }
+    .fast-timer .ft-time { font-size: 28px; font-weight: 700; color: #1d3d1d;
+      font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1; }
+    .fast-timer .ft-sub { font-size: 12px; color: #5a7a5a; margin-top: 4px; font-weight: 500; }
+    .fast-timer .ft-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+    .ft-btn { padding: 9px 18px; border-radius: 999px; border: 0;
+      font: inherit; font-weight: 600; cursor: pointer;
+      transition: transform 100ms ease; }
+    .ft-btn:active { transform: scale(.97); }
+    .ft-btn.start { background: linear-gradient(135deg, #5bb88a 0%, #4a9b6a 100%);
+      color: white; box-shadow: 0 2px 6px rgba(74,155,106,0.3); }
+    .ft-btn.end { background: linear-gradient(135deg, #5bb88a 0%, #4a9b6a 100%);
+      color: white; box-shadow: 0 2px 6px rgba(74,155,106,0.3); }
+    .ft-btn.primary { background: #4a9b6a; color: white; }
+    .ft-btn.ghost { background: white; color: #4a6a4a; border: 1px solid rgba(91,184,138,0.4); }
+    .ft-btn.small { padding: 6px 12px; font-size: 12px; }
+    .fast-timer .ft-actions input[type="datetime-local"] { padding: 7px 10px;
+      border: 1px solid rgba(91,184,138,0.4); border-radius: 8px;
+      background: white; font: inherit; font-size: 12px; max-width: 180px; }
+
     /* Nutrient bars */
     .nb-block { padding: 14px; border-radius: 14px;
       background: linear-gradient(135deg, #faf7f2 0%, #f4ede0 100%);

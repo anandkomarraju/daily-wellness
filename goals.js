@@ -3,6 +3,7 @@ export const DEFAULT_GOALS = {
   water_oz: 140,
   steps: 10000,
   walks_goal: 3,
+  fast_goal_hours: 14,
   kcal: 1800,
   protein_g: 125,
   fiber_g: 35,

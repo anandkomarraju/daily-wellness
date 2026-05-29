@@ -83,6 +83,7 @@ const GOAL_FIELDS = [
   { key: "water_oz",    label: "Water",     unit: "oz",   hint: "daily intake target",   nutrient: false },
   { key: "steps",       label: "Steps",     unit: "",     hint: "daily walking goal",    nutrient: false },
   { key: "walks_goal",  label: "Post-Meal Walks", unit: "", hint: "daily target (1-3)", nutrient: false },
+  { key: "fast_goal_hours", label: "Fasting Goal", unit: "h", hint: "14, 16, 18, 20, or 24", nutrient: false },
   { key: "kcal",        label: "Calories",  unit: "kcal", hint: "daily intake target",   nutrient: true },
   { key: "protein_g",   label: "Protein",   unit: "g",    hint: "daily minimum",         nutrient: true },
   { key: "fiber_g",     label: "Fiber",     unit: "g",    hint: "daily minimum",         nutrient: true },

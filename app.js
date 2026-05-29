@@ -310,7 +310,7 @@ function startTicker() {
     if (activeFast && !fastEditOpen) {
       rerender();
     }
-  }, 60_000);
+  }, 1000);
 }
 
 function escapeAttr(s) {
@@ -341,7 +341,7 @@ function computeScores(e = entry, dateKey = date) {
   // Weights (sum to 1.00)
   // Fast 10 · Water 10 · Steps 10 · Nutrients 10 (protein+fiber) ·
   // Recovery 10 · Strength 10 · Other routine items 40
-  const goalH = e?.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
+  const goalH = goals.fast_goal_hours ?? DEFAULT_FAST_GOAL_HOURS;
   const fastFrac = Math.min(1, totalFastedHoursForEntry(e, dateKey) / goalH);
 
   const w = e?.waterOz ?? 0;
@@ -584,27 +584,51 @@ function bigRingSvg(p) {
   `;
 }
 
-function renderFastingRing(e = entry, dateKey = date, interactive = true) {
-  const goalH = e.fastGoalHours ?? DEFAULT_FAST_GOAL_HOURS;
+function renderFastingTimer(e = entry, dateKey = date, interactive = true) {
+  const goalH = goals.fast_goal_hours ?? DEFAULT_FAST_GOAL_HOURS;
   const totalH = totalFastedHoursForEntry(e, dateKey);
   const pct = Math.min(100, Math.round((totalH / goalH) * 100));
-  const status = totalH >= goalH ? "met" : "unmet";
   const isFasting = interactive && !!activeFast;
-  const stage = isFasting ? currentFastStage(totalH) : null;
   const completedCount = (e.completedFasts ?? []).length;
   const lastFast = completedCount > 0 ? e.completedFasts[completedCount - 1] : null;
 
-  const subline = isFasting
-    ? `now · ${stage.name}`
-    : (completedCount > 0
-        ? `${completedCount} fast${completedCount === 1 ? '' : 's'} done`
-        : "not started");
+  // Countdown: time REMAINING to reach goal
+  const remainingMs = Math.max(0, (goalH * 3600000) - (totalH * 3600000));
+  const remH = Math.floor(remainingMs / 3600000);
+  const remM = Math.floor((remainingMs % 3600000) / 60000);
+  const remS = Math.floor((remainingMs % 60000) / 1000);
+  const countdown = `${String(remH).padStart(2,"0")}:${String(remM).padStart(2,"0")}:${String(remS).padStart(2,"0")}`;
+  const goalReached = totalH >= goalH;
 
-  // Center: just the number — neutral ring stroke, text colored by status.
-  const centerHtml = `
-    <div class="ring-center-num" data-status="${status}">${totalH.toFixed(1)}<span class="ring-unit">h</span></div>
-    <div class="ring-center-goal">/ ${goalH}h</div>
+  // Ring SVG (compact, 56px)
+  const r = 22, c = 2 * Math.PI * r;
+  const off = c * (1 - Math.min(1, pct / 100));
+  const ringColor = isFasting ? (goalReached ? "#4a9b6a" : "#5bb88a") : "#8a9b8a";
+  const ringSvg = `
+    <svg viewBox="0 0 56 56" class="ft-ring-svg">
+      <circle cx="28" cy="28" r="${r}" fill="none" stroke="#e8e3d8" stroke-width="5" />
+      <circle cx="28" cy="28" r="${r}" fill="none" stroke="${ringColor}" stroke-width="5"
+              stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"
+              transform="rotate(-90 28 28)" />
+    </svg>
   `;
+  const icon = isFasting ? "⚡" : "🕐";
+  const stateLabel = isFasting ? "FASTING" : (completedCount > 0 ? "DONE" : "EATING");
+
+  let timeDisplay, subtext;
+  if (isFasting && !goalReached) {
+    timeDisplay = countdown;
+    subtext = `Fasting for ${totalH.toFixed(1)}h · ${currentFastStage(totalH).name}`;
+  } else if (isFasting && goalReached) {
+    timeDisplay = `${totalH.toFixed(1)}h`;
+    subtext = `Goal reached! · ${currentFastStage(totalH).name}`;
+  } else if (completedCount > 0) {
+    timeDisplay = `${totalH.toFixed(1)}h`;
+    subtext = `${completedCount} fast${completedCount === 1 ? '' : 's'} completed`;
+  } else {
+    timeDisplay = "—";
+    subtext = "No fast today";
+  }
 
   let actions = "";
   if (!interactive) {
@@ -612,40 +636,39 @@ function renderFastingRing(e = entry, dateKey = date, interactive = true) {
   } else if (fastEditOpen) {
     actions = `
       <input type="datetime-local" id="fast-start-input" value="${toLocalDatetimeInput(new Date((activeFast && activeFast.startedAt) || (lastFast && lastFast.startedAt) || Date.now()))}" />
-      <button class="primary" id="fast-start-save">Save</button>
-      <button class="ghost" id="fast-edit-cancel">Cancel</button>
+      <button class="ft-btn primary" id="fast-start-save">Save</button>
+      <button class="ft-btn ghost" id="fast-edit-cancel">Cancel</button>
     `;
   } else if (fastEndEditOpen && lastFast) {
     actions = `
       <input type="datetime-local" id="fast-end-input" value="${toLocalDatetimeInput(new Date(lastFast.endedAt))}" />
-      <button class="primary" id="fast-end-save">Save</button>
-      <button class="ghost" id="fast-end-cancel">Cancel</button>
+      <button class="ft-btn primary" id="fast-end-save">Save</button>
+      <button class="ft-btn ghost" id="fast-end-cancel">Cancel</button>
     `;
   } else if (isFasting) {
     actions = `
-      <button class="primary" id="end-fast">End</button>
-      <button class="ghost small" id="fast-edit">edit start</button>
+      <button class="ft-btn end" id="end-fast">End Fasting</button>
+      <button class="ft-btn ghost small" id="fast-edit">edit</button>
     `;
   } else {
     actions = `
-      <button class="primary" id="start-fast">Start</button>
-      <select id="fast-goal-select" class="small">
-        ${FAST_GOAL_OPTIONS.map(o => `<option value="${o}" ${o === goalH ? "selected" : ""}>${o}h</option>`).join("")}
-      </select>
-      ${completedCount > 0 ? `<button class="ghost small" id="fast-end-edit">edit last</button>` : ""}
+      <button class="ft-btn start" id="start-fast">Start Fasting</button>
+      ${completedCount > 0 ? `<button class="ft-btn ghost small" id="fast-end-edit">edit</button>` : ""}
     `;
   }
 
   return `
-    <div class="big-ring-card" data-status="${status}">
-      <div class="big-ring-emoji">🩸</div>
-      <div class="big-ring">
-        ${bigRingSvg(pct)}
-        <div class="big-ring-center">${centerHtml}</div>
+    <div class="fast-timer ${isFasting ? 'active' : ''}">
+      <div class="ft-ring">
+        ${ringSvg}
+        <div class="ft-ring-icon">${icon}</div>
+        <div class="ft-ring-label">${stateLabel}</div>
       </div>
-      <div class="big-ring-label">Fasting</div>
-      <div class="big-ring-sub">${subline}</div>
-      <div class="big-ring-actions">${actions}</div>
+      <div class="ft-info">
+        <div class="ft-time">${timeDisplay}</div>
+        <div class="ft-sub">${subtext}</div>
+        <div class="ft-actions">${actions}</div>
+      </div>
     </div>
   `;
 }
@@ -684,8 +707,8 @@ function renderStepsRing(e = entry, interactive = true) {
 
 function renderControlsPanel(e = entry, dateKey = date, interactive = true) {
   return `
-    <div class="rings-pair">
-      ${renderFastingRing(e, dateKey, interactive)}
+    ${renderFastingTimer(e, dateKey, interactive)}
+    <div class="rings-pair" style="margin-top:12px">
       ${renderStepsRing(e, interactive)}
     </div>
   `;
