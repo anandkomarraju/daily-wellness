@@ -187,9 +187,9 @@ export function renderSettings(root, storage, items, onChange, backup) {
   const { signal } = controller;
 
   function save() {
-    // Normalize order values to prevent gaps/duplicates
+    // Normalize order values to sequential 10, 20, 30...
     items.items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    items.items.forEach((it, i) => { it.order = (i + 1) * 10; });
+    for (let i = 0; i < items.items.length; i++) items.items[i].order = (i + 1) * 10;
     storage.saveItems(items);
     onChange(items);
     paint();
@@ -331,26 +331,26 @@ export function renderSettings(root, storage, items, onChange, backup) {
     const act = btn.dataset.act;
     if (!act) return;
     ev.stopPropagation();
-    // Guard: check item still exists
-    const realIdx = items.items.findIndex(i => i.id === id);
-    if (realIdx === -1) return;
-    // Work with sorted array to match visual order
-    const sorted = [...items.items].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    const sortedIdx = sorted.findIndex(i => i.id === id);
+    // Sort items first so we work with visual positions
+    items.items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const idx = items.items.findIndex(i => i.id === id);
+    if (idx === -1) return;
     if (act === "del") {
       if (!confirm("Delete this item?")) return;
-      items.items.splice(realIdx, 1);
+      items.items.splice(idx, 1);
       save();
     } else if (act === "macros") {
-      items.items[realIdx].macros = !items.items[realIdx].macros;
+      items.items[idx].macros = !items.items[idx].macros;
       save();
-    } else if (act === "up" && sortedIdx > 0) {
-      const a = sorted[sortedIdx], b = sorted[sortedIdx - 1];
-      const t = a.order; a.order = b.order; b.order = t;
+    } else if (act === "up" && idx > 0) {
+      const temp = items.items[idx];
+      items.items[idx] = items.items[idx - 1];
+      items.items[idx - 1] = temp;
       save();
-    } else if (act === "down" && sortedIdx < sorted.length - 1) {
-      const a = sorted[sortedIdx], b = sorted[sortedIdx + 1];
-      const t = a.order; a.order = b.order; b.order = t;
+    } else if (act === "down" && idx < items.items.length - 1) {
+      const temp = items.items[idx];
+      items.items[idx] = items.items[idx + 1];
+      items.items[idx + 1] = temp;
       save();
     }
   }, { signal });
