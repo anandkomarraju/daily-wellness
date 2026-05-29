@@ -189,23 +189,21 @@ function endFastAt(endDate) {
   if (!activeFast) return;
   const startedAt = activeFast.startedAt;
   const endedAt = endDate.toISOString();
-  // The completed fast belongs to the END day.
   const endDayKey = ymd(endDate);
-  const allEntries = storage.getAllEntries();
-  let endEntry = allEntries[endDayKey];
-  if (!endEntry) {
-    // Create a minimal entry for that day
-    endEntry = blankEntry(endDayKey, items);
-    Object.assign(endEntry, { ...baseExtras });
-  }
-  if (!Array.isArray(endEntry.completedFasts)) endEntry.completedFasts = [];
-  endEntry.completedFasts.push({ startedAt, endedAt });
-  endEntry.savedAt = new Date().toISOString();
-  storage.saveEntry(endDayKey, endEntry);
-  // If the end day is today, sync our in-memory entry too
+
   if (endDayKey === date) {
+    // Today: append to in-memory entry and persist normally
     if (!Array.isArray(entry.completedFasts)) entry.completedFasts = [];
     entry.completedFasts.push({ startedAt, endedAt });
+    persist();
+  } else {
+    // Different day: read existing entry from storage, append fast, save back
+    const existing = storage.getEntry(endDayKey);
+    const endEntry = existing ?? { ...blankEntry(endDayKey, items), ...baseExtras };
+    if (!Array.isArray(endEntry.completedFasts)) endEntry.completedFasts = [];
+    endEntry.completedFasts.push({ startedAt, endedAt });
+    endEntry.savedAt = new Date().toISOString();
+    storage.saveEntry(endDayKey, endEntry);
   }
   activeFast = null;
   storage.saveActiveFast(null);
@@ -637,17 +635,26 @@ function renderFastingTimer(e = entry, dateKey = date, interactive = true) {
   const isFasting = interactive && !!activeFast;
   const completedCount = (e.completedFasts ?? []).length;
   const lastFast = completedCount > 0 ? e.completedFasts[completedCount - 1] : null;
+  const isToday = dateKey === date;
+  const isPastDay = !isToday;
 
-  // Only show elapsed progress while actively fasting; otherwise ring is empty
-  const totalH = isFasting ? totalFastedHoursForEntry(e, dateKey) : 0;
+  // Past days: show completed fast duration in ring. Today: only show while actively fasting.
+  let totalH;
+  if (isFasting) {
+    totalH = totalFastedHoursForEntry(e, dateKey);
+  } else if (isPastDay && completedCount > 0) {
+    totalH = totalFastedHoursForEntry(e, dateKey);
+  } else {
+    totalH = 0;
+  }
   const pct = Math.min(100, Math.round((totalH / goalH) * 100));
   const remainingMs = Math.max(0, (goalH * 3600000) - (totalH * 3600000));
-  const goalReached = isFasting && totalH >= goalH;
+  const goalReached = totalH >= goalH;
 
   // Ring SVG (compact, 56px)
   const r = 22, c = 2 * Math.PI * r;
   const off = c * (1 - Math.min(1, pct / 100));
-  const ringColor = isFasting ? (goalReached ? "#4a9b6a" : "#5bb88a") : "#8a9b8a";
+  const ringColor = isFasting ? (goalReached ? "#4a9b6a" : "#5bb88a") : (isPastDay && completedCount > 0 ? "#8a9b8a" : "#e8e3d8");
   const ringSvg = `
     <svg viewBox="0 0 56 56" class="ft-ring-svg">
       <circle cx="28" cy="28" r="${r}" fill="none" stroke="#e8e3d8" stroke-width="5" />
@@ -675,6 +682,9 @@ function renderFastingTimer(e = entry, dateKey = date, interactive = true) {
       const remM = Math.floor((remainingMs % 3600000) / 60000);
       subtext = `${remH}h ${String(remM).padStart(2,"0")}m remaining · ${currentFastStage(totalH).name}`;
     }
+  } else if (isPastDay && completedCount > 0) {
+    timeDisplay = `${totalH.toFixed(1)}h`;
+    subtext = `${completedCount} fast${completedCount === 1 ? '' : 's'} · ${goalReached ? 'goal met' : `${pct}% of goal`}`;
   } else {
     const now = new Date();
     const h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
