@@ -188,7 +188,6 @@ export function renderSettings(root, storage, items, onChange, backup) {
     items.items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     for (let i = 0; i < items.items.length; i++) items.items[i].order = (i + 1) * 10;
     storage.saveItems(items);
-    onChange(items);
   }
 
   function paint() {
