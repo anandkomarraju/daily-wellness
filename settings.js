@@ -186,7 +186,14 @@ export function renderSettings(root, storage, items, onChange, backup) {
   const controller = new AbortController();
   const { signal } = controller;
 
-  function save() { storage.saveItems(items); onChange(items); paint(); }
+  function save() {
+    // Normalize order values to prevent gaps/duplicates
+    items.items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    items.items.forEach((it, i) => { it.order = (i + 1) * 10; });
+    storage.saveItems(items);
+    onChange(items);
+    paint();
+  }
 
   function paint() {
     items.items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -319,21 +326,25 @@ export function renderSettings(root, storage, items, onChange, backup) {
     const itemRow = ev.target.closest(".item");
     if (!itemRow) return;
     const id = itemRow.dataset.id;
-    const idx = items.items.findIndex(i => i.id === id);
     const act = ev.target.dataset.act;
+    if (!act) return;
+    // Work with sorted array to match visual order
+    const sorted = [...items.items].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const sortedIdx = sorted.findIndex(i => i.id === id);
+    const realIdx = items.items.findIndex(i => i.id === id);
     if (act === "del") {
       if (!confirm("Delete this item? History keeps the old record.")) return;
-      items.items.splice(idx, 1);
+      items.items.splice(realIdx, 1);
       save();
     } else if (act === "macros") {
-      items.items[idx].macros = !items.items[idx].macros;
+      items.items[realIdx].macros = !items.items[realIdx].macros;
       save();
-    } else if (act === "up" && idx > 0) {
-      const a = items.items[idx], b = items.items[idx - 1];
+    } else if (act === "up" && sortedIdx > 0) {
+      const a = sorted[sortedIdx], b = sorted[sortedIdx - 1];
       const t = a.order; a.order = b.order; b.order = t;
       save();
-    } else if (act === "down" && idx < items.items.length - 1) {
-      const a = items.items[idx], b = items.items[idx + 1];
+    } else if (act === "down" && sortedIdx < sorted.length - 1) {
+      const a = sorted[sortedIdx], b = sorted[sortedIdx + 1];
       const t = a.order; a.order = b.order; b.order = t;
       save();
     }
