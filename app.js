@@ -881,6 +881,9 @@ function renderTracking() {
   const root = document.getElementById("app");
   root.innerHTML = "";
 
+  const ve = getViewEntry();
+  const viewing = isViewingToday();
+
   // Date navigation
   const nav = document.createElement("div");
   nav.className = "date-nav";
@@ -890,7 +893,7 @@ function renderTracking() {
       <span class="date-label-text">${shortDate(viewDate)}</span>
       <input type="date" id="date-picker" value="${viewDate}" max="${date}" />
     </label>
-    <button id="date-next" class="date-arrow" aria-label="Next day" ${isViewingToday() ? "disabled" : ""}>›</button>
+    <button id="date-next" class="date-arrow" aria-label="Next day" ${viewing ? "disabled" : ""}>›</button>
   `;
   root.appendChild(nav);
 
@@ -903,14 +906,12 @@ function renderTracking() {
   let walksInserted = false;
 
   flat.forEach((it) => {
-    // Skip individual walk items — they're consolidated below
     if (WALK_IDS.includes(it.id)) {
-      // Insert the walks row once, after the first walk's natural position
       if (!walksInserted) {
         walksInserted = true;
         rowNum++;
         const walkGoal = goals.walks_goal ?? 3;
-        const walksDone = entry.walksCompleted ?? 0;
+        const walksDone = ve.walksCompleted ?? 0;
         const walkRow = document.createElement("div");
         walkRow.className = "row walks-row";
         walkRow.dataset.id = "walks_consolidated";
@@ -923,7 +924,7 @@ function renderTracking() {
               ${Array.from({length: walkGoal}, (_, i) => {
                 const n = i + 1;
                 const active = n <= walksDone;
-                return `<button class="walk-chip ${active ? 'active' : ''}" data-walk-n="${n}">${n}</button>`;
+                return `<button class="walk-chip ${active ? 'active' : ''}" data-walk-n="${n}" ${!viewing ? 'disabled' : ''}>${n}</button>`;
               }).join("")}
               <span class="walk-count">${walksDone} of ${walkGoal}</span>
             </div>
@@ -935,7 +936,7 @@ function renderTracking() {
     }
 
     rowNum++;
-    const cell = entry.items[it.id] ?? { checked: false, comment: "", label: it.label };
+    const cell = ve.items?.[it.id] ?? { checked: false, comment: "", label: it.label };
     const row = document.createElement("div");
     row.className = "row";
     row.dataset.id = it.id;
@@ -943,32 +944,32 @@ function renderTracking() {
     const m = cell.macros ?? { p: "", fi: "", fa: "", c: "", su: "", kcal: "" };
     const glyph = ICONS[it.id] ?? "·";
     row.innerHTML = `
-      <input type="checkbox" ${cell.checked ? "checked" : ""} />
+      <input type="checkbox" ${cell.checked ? "checked" : ""} ${!viewing ? 'disabled' : ''} />
       <span class="glyph">${glyph}</span>
       <div class="num">${rowNum}.</div>
       <div class="label">
         ${it.label}
-        ${!cell.checked ? `<span class="note-toggle">+ note</span>` : ""}
-        ${(!cell.checked && cell.comment) ? `<textarea>${escapeAttr(cell.comment)}</textarea>` : ""}
+        ${viewing && !cell.checked ? `<span class="note-toggle">+ note</span>` : ""}
+        ${(!cell.checked && cell.comment) ? `<textarea ${!viewing ? 'disabled' : ''}>${escapeAttr(cell.comment)}</textarea>` : ""}
         ${it.macros && goals.track_nutrients !== false ? `
           <div class="macros">
-            <button class="food-pick-btn" data-pick-for="${it.id}">📋</button>
-            <label>Cal <input type="number" min="0" inputmode="numeric" data-mac="kcal" value="${m.kcal ?? ""}"></label>
-            <label>P <input type="number" min="0" inputmode="numeric" data-mac="p"  value="${m.p ?? ""}"></label>
-            <label>Fi <input type="number" min="0" inputmode="numeric" data-mac="fi" value="${m.fi ?? ""}"></label>
-            <label>Fa <input type="number" min="0" inputmode="numeric" data-mac="fa" value="${m.fa ?? ""}"></label>
-            <label>NetC <input type="number" min="0" inputmode="numeric" data-mac="c"  value="${m.c ?? ""}"></label>
-            <label class="${(Number(m.su)||0) > 15 ? 'sugar-warn' : ''}">Su <input type="number" min="0" inputmode="numeric" data-mac="su" value="${m.su ?? ""}"></label>
+            ${viewing ? `<button class="food-pick-btn" data-pick-for="${it.id}">📋</button>` : ""}
+            <label>Cal <input type="number" min="0" inputmode="numeric" data-mac="kcal" value="${m.kcal ?? ""}" ${!viewing ? 'disabled' : ''}></label>
+            <label>P <input type="number" min="0" inputmode="numeric" data-mac="p"  value="${m.p ?? ""}" ${!viewing ? 'disabled' : ''}></label>
+            <label>Fi <input type="number" min="0" inputmode="numeric" data-mac="fi" value="${m.fi ?? ""}" ${!viewing ? 'disabled' : ''}></label>
+            <label>Fa <input type="number" min="0" inputmode="numeric" data-mac="fa" value="${m.fa ?? ""}" ${!viewing ? 'disabled' : ''}></label>
+            <label>NetC <input type="number" min="0" inputmode="numeric" data-mac="c"  value="${m.c ?? ""}" ${!viewing ? 'disabled' : ''}></label>
+            <label class="${(Number(m.su)||0) > 15 ? 'sugar-warn' : ''}">Su <input type="number" min="0" inputmode="numeric" data-mac="su" value="${m.su ?? ""}" ${!viewing ? 'disabled' : ''}></label>
           </div>
-          ${pickerOpenFor === it.id ? renderFoodPicker(it.id) : ""}
+          ${viewing && pickerOpenFor === it.id ? renderFoodPicker(it.id) : ""}
         ` : ""}
       </div>
     `;
     sec.appendChild(row);
   });
 
-  // Snack rows — appended after routine, styled like routine rows
-  const snacks = entry.snacks ?? [];
+  // Snack rows
+  const snacks = ve.snacks ?? [];
   let nextNum = flat.length + 1;
   for (const sn of snacks) {
     const m = sn.macros ?? {};
@@ -982,15 +983,15 @@ function renderTracking() {
       <div class="num">${nextNum++}.</div>
       <div class="label">
         ${escapeAttr(sn.label || "(snack)")}
-        <button class="snack-del" data-snack-del="${sn.id}" title="Remove snack">✕</button>
+        ${viewing ? `<button class="snack-del" data-snack-del="${sn.id}" title="Remove snack">✕</button>` : ""}
         ${goals.track_nutrients !== false ? `
         <div class="macros">
-          <label>Cal <input type="number" min="0" inputmode="numeric" data-snack-mac="kcal" data-snack-id="${sn.id}" value="${m.kcal ?? ""}"></label>
-          <label>P <input type="number" min="0" inputmode="numeric" data-snack-mac="p"  data-snack-id="${sn.id}" value="${m.p ?? ""}"></label>
-          <label>Fi <input type="number" min="0" inputmode="numeric" data-snack-mac="fi" data-snack-id="${sn.id}" value="${m.fi ?? ""}"></label>
-          <label>Fa <input type="number" min="0" inputmode="numeric" data-snack-mac="fa" data-snack-id="${sn.id}" value="${m.fa ?? ""}"></label>
-          <label>NetC <input type="number" min="0" inputmode="numeric" data-snack-mac="c"  data-snack-id="${sn.id}" value="${m.c ?? ""}"></label>
-          <label class="${(Number(m.su)||0) > 15 ? 'sugar-warn' : ''}">Su <input type="number" min="0" inputmode="numeric" data-snack-mac="su" data-snack-id="${sn.id}" value="${m.su ?? ""}"></label>
+          <label>Cal <input type="number" min="0" inputmode="numeric" data-snack-mac="kcal" data-snack-id="${sn.id}" value="${m.kcal ?? ""}" ${!viewing ? 'disabled' : ''}></label>
+          <label>P <input type="number" min="0" inputmode="numeric" data-snack-mac="p"  data-snack-id="${sn.id}" value="${m.p ?? ""}" ${!viewing ? 'disabled' : ''}></label>
+          <label>Fi <input type="number" min="0" inputmode="numeric" data-snack-mac="fi" data-snack-id="${sn.id}" value="${m.fi ?? ""}" ${!viewing ? 'disabled' : ''}></label>
+          <label>Fa <input type="number" min="0" inputmode="numeric" data-snack-mac="fa" data-snack-id="${sn.id}" value="${m.fa ?? ""}" ${!viewing ? 'disabled' : ''}></label>
+          <label>NetC <input type="number" min="0" inputmode="numeric" data-snack-mac="c"  data-snack-id="${sn.id}" value="${m.c ?? ""}" ${!viewing ? 'disabled' : ''}></label>
+          <label class="${(Number(m.su)||0) > 15 ? 'sugar-warn' : ''}">Su <input type="number" min="0" inputmode="numeric" data-snack-mac="su" data-snack-id="${sn.id}" value="${m.su ?? ""}" ${!viewing ? 'disabled' : ''}></label>
         </div>
         ` : ""}
       </div>
@@ -998,37 +999,39 @@ function renderTracking() {
     sec.appendChild(row);
   }
 
-  // Add-snack form / button as the last row
-  const addRow = document.createElement("div");
-  addRow.className = "row snack-add-row";
-  if (snackFormOpen) {
-    addRow.innerHTML = `
-      <span class="glyph">🍿</span>
-      <div class="num">${nextNum}.</div>
-      <div class="label">
-        <input type="text" id="snack-label" placeholder="what I ate" class="snack-label-input" />
-        ${goals.track_nutrients !== false ? `
-        <div class="macros">
-          <label>Cal <input type="number" min="0" inputmode="numeric" id="snack-kcal" /></label>
-          <label>P <input type="number" min="0" inputmode="numeric" id="snack-p" /></label>
-          <label>Fi <input type="number" min="0" inputmode="numeric" id="snack-fi" /></label>
-          <label>Fa <input type="number" min="0" inputmode="numeric" id="snack-fa" /></label>
-          <label>NetC <input type="number" min="0" inputmode="numeric" id="snack-c" /></label>
-          <label>Su <input type="number" min="0" inputmode="numeric" id="snack-su" /></label>
+  // Add-snack form / button (only for today)
+  if (viewing) {
+    const addRow = document.createElement("div");
+    addRow.className = "row snack-add-row";
+    if (snackFormOpen) {
+      addRow.innerHTML = `
+        <span class="glyph">🍿</span>
+        <div class="num">${nextNum}.</div>
+        <div class="label">
+          <input type="text" id="snack-label" placeholder="what I ate" class="snack-label-input" />
+          ${goals.track_nutrients !== false ? `
+          <div class="macros">
+            <label>Cal <input type="number" min="0" inputmode="numeric" id="snack-kcal" /></label>
+            <label>P <input type="number" min="0" inputmode="numeric" id="snack-p" /></label>
+            <label>Fi <input type="number" min="0" inputmode="numeric" id="snack-fi" /></label>
+            <label>Fa <input type="number" min="0" inputmode="numeric" id="snack-fa" /></label>
+            <label>NetC <input type="number" min="0" inputmode="numeric" id="snack-c" /></label>
+            <label>Su <input type="number" min="0" inputmode="numeric" id="snack-su" /></label>
+          </div>
+          ` : ""}
+          <div class="snack-form-actions">
+            <button id="snack-save" class="snack-save-btn">Save</button>
+            <button id="snack-toggle" class="snack-cancel-btn">Cancel</button>
+          </div>
         </div>
-        ` : ""}
-        <div class="snack-form-actions">
-          <button id="snack-save" class="snack-save-btn">Save</button>
-          <button id="snack-toggle" class="snack-cancel-btn">Cancel</button>
-        </div>
-      </div>
-    `;
-  } else {
-    addRow.innerHTML = `
-      <button id="snack-toggle" class="snack-add-btn">+ Add snack</button>
-    `;
+      `;
+    } else {
+      addRow.innerHTML = `
+        <button id="snack-toggle" class="snack-add-btn">+ Add snack</button>
+      `;
+    }
+    sec.appendChild(addRow);
   }
-  sec.appendChild(addRow);
 
   root.appendChild(sec);
 
